@@ -73,8 +73,6 @@
 
         .cam-arrow {
             position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
             width: 45px;
             height: 45px;
             background: rgba(255, 255, 255, 0.25);
@@ -87,9 +85,12 @@
             align-items: center;
             z-index: 20;
             cursor: pointer;
+            touch-action: none;
         }
-        #cam-left { left: 10px; }
-        #cam-right { right: 10px; }
+        #cam-left { top: 50%; left: 10px; transform: translateY(-50%); }
+        #cam-right { top: 50%; right: 10px; transform: translateY(-50%); }
+        #cam-up { top: 10px; left: 50%; transform: translateX(-50%); }
+        #cam-down { bottom: 10px; left: 50%; transform: translateX(-50%); }
 
         #gui-container {
             width: 100%;
@@ -427,6 +428,8 @@
         <canvas id="three-canvas"></canvas>
         <div class="cam-arrow" id="cam-left" onclick="rotateCam(-1)">‹</div>
         <div class="cam-arrow" id="cam-right" onclick="rotateCam(1)">›</div>
+        <div class="cam-arrow" id="cam-up">▲</div>
+        <div class="cam-arrow" id="cam-down">▼</div>
         <div id="huge-count" class="hidden">40</div>
         <div id="turn-banner" class="hidden">〇〇の番です</div>
         <div id="central-battle-status" class="hidden"></div>
@@ -449,13 +452,13 @@
         </div>
 
         <div class="controls-info">
-            💡 左右矢印: 回転 | ダブルタップ: 近接/全体 | 上下スワイプ: 高さ移動
+            💡 左右矢印: 回転 | 上下矢印: 高さ移動 | ダブルタップ: 近接/全体
         </div>
     </div>
 
     <!-- タイトル画面 -->
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタック</div>
+        <div class="title-logo">ジェンガアタックVer1.0</div>
         <div class="blink-text">スタート</div>
     </div>
 
@@ -767,15 +770,50 @@ function rotateCam(dir) {
     updateCameraPosition();
 }
 
-/* --- タッチ/ポインター制御 --- */
+/* --- タッチ/ポインター制御（修正版：ボタン長押しで上下移動、スワイプ干渉を除去） --- */
 let lastTapTime = 0;
-let touchStartY = 0;
 let touchStartX = 0;
+let touchStartY = 0;
 let touchStartTime = 0;
 let singleTapTimeout = null;
+let heightMoveInterval = null;
+
+function moveCamHeight(dir) {
+    STATE.camHeight = Math.max(1, Math.min(18, STATE.camHeight + dir * 0.4));
+    updateCameraPosition();
+}
+
+function startHeightMove(dir) {
+    if (heightMoveInterval) clearInterval(heightMoveInterval);
+    moveCamHeight(dir);
+    heightMoveInterval = setInterval(() => {
+        moveCamHeight(dir);
+    }, 50);
+}
+
+function stopHeightMove() {
+    if (heightMoveInterval) {
+        clearInterval(heightMoveInterval);
+        heightMoveInterval = null;
+    }
+}
 
 function initTouchControls() {
     const container = document.getElementById('canvas-container');
+
+    // 上下ボタンの押下イベント登録
+    const btnUp = document.getElementById('cam-up');
+    const btnDown = document.getElementById('cam-down');
+
+    ['pointerdown'].forEach(evt => {
+        btnUp.addEventListener(evt, (e) => { e.stopPropagation(); startHeightMove(1); });
+        btnDown.addEventListener(evt, (e) => { e.stopPropagation(); startHeightMove(-1); });
+    });
+
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => {
+        btnUp.addEventListener(evt, stopHeightMove);
+        btnDown.addEventListener(evt, stopHeightMove);
+    });
 
     const handleStart = (clientX, clientY) => {
         touchStartX = clientX;
@@ -783,20 +821,11 @@ function initTouchControls() {
         touchStartTime = Date.now();
     };
 
-    const handleMove = (clientY) => {
-        if (!STATE.isZoomed) return;
-        const diffY = touchStartY - clientY;
-        if (Math.abs(diffY) > 5) {
-            STATE.camHeight = Math.max(1, Math.min(18, STATE.camHeight + (diffY > 0 ? 0.3 : -0.3)));
-            touchStartY = clientY;
-            updateCameraPosition();
-        }
-    };
-
     const handleEnd = (clientX, clientY) => {
         const elapsed = Date.now() - touchStartTime;
         const dist = Math.hypot(clientX - touchStartX, clientY - touchStartY);
 
+        // タップ判定 (移動距離が小さい場合のみ)
         if (elapsed < 350 && dist < 15) {
             const now = Date.now();
             if (now - lastTapTime < 300) {
@@ -818,7 +847,6 @@ function initTouchControls() {
     };
 
     container.addEventListener('pointerdown', (e) => handleStart(e.clientX, e.clientY));
-    container.addEventListener('pointermove', (e) => handleMove(e.clientY));
     container.addEventListener('pointerup', (e) => handleEnd(e.clientX, e.clientY));
 }
 
@@ -1414,13 +1442,11 @@ function updateGUI() {
     updateCentralStatus();
 }
 
-/* --- 修正ポイント：攻防プレイヤーの動的判定アルゴリズム --- */
 function updateCentralStatus() {
     const cs = document.getElementById('central-battle-status');
     cs.classList.remove('hidden');
     const curP = STATE.players[STATE.turnIndex];
     
-    // 1人プレイ、または攻撃対象が未決定・自分と同じ場合は次のプレイヤーを「防」として動的取得
     let targetIdx = STATE.targetPlayerIndex;
     if (STATE.players.length > 1 && (targetIdx === STATE.turnIndex || targetIdx >= STATE.players.length)) {
         targetIdx = (STATE.turnIndex + 1) % STATE.players.length;
