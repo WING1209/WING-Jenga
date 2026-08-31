@@ -184,7 +184,7 @@
             align-items: center;
             z-index: 100;
             padding: 20px;
-            cursor: pointer; /* タイトル画面全体をクリック可能に */
+            cursor: pointer;
         }
         .popup-transparent-overlay {
             position: absolute;
@@ -227,7 +227,7 @@
             flex-direction: column;
             gap: 12px;
             text-align: center;
-            cursor: default; /* メニュー内は通常のカーソル */
+            cursor: default;
         }
         .menu-btn {
             background: #444;
@@ -423,9 +423,8 @@
         </div>
     </div>
 
-    <!-- タイトル画面全体に onclick="showMenu()" を設定し、どこをタップしても反応するように修正 -->
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer3.5<br><span style="font-size:18px; color:#fff;">Online</span></div>
+        <div class="title-logo">ジェンガアタックVer3<br><span style="font-size:18px; color:#fff;">Online</span></div>
         <div class="blink-text">TAP TO START</div>
     </div>
 
@@ -437,7 +436,6 @@
             <button class="menu-btn" onclick="location.reload()">３．終了</button>
         </div>
 
-        <!-- プレイヤーネーム入力 -->
         <div class="menu-box hidden" id="menu-name">
             <h3>プレイヤーネーム</h3>
             <p style="font-size:11px; color:#aaa;">(ひらがな・数字 6文字まで)</p>
@@ -445,7 +443,6 @@
             <button class="menu-btn" onclick="submitName()">決定</button>
         </div>
 
-        <!-- ゲスト：4桁ルームID入力 -->
         <div class="menu-box hidden" id="menu-guest-id">
             <h3>4桁ルームID入力</h3>
             <p style="font-size:10px; color:#aaa;">ホストから共有された4桁の数字を入力してください</p>
@@ -453,7 +450,6 @@
             <button class="menu-btn" onclick="connectGuest()">接続</button>
         </div>
 
-        <!-- ロビー待機画面 -->
         <div class="menu-box hidden" id="menu-lobby">
             <h3>接続待機中...</h3>
             <div style="font-size:18px; font-weight:bold; color:#ffcc00; margin:5px 0;" id="room-id-display">4桁ID: 読み込み中...</div>
@@ -463,7 +459,6 @@
         </div>
     </div>
 
-    <!-- ポップアップ -->
     <div id="popup-overlay" class="popup-transparent-overlay hidden">
         <div class="menu-box" id="popup-content">
             <h3 id="popup-title">タイトル</h3>
@@ -478,7 +473,7 @@
             <div class="gauge-pointer" id="gauge-pointer"></div>
         </div>
         <div style="display:flex; justify-content:space-between; font-size:10px;">
-            <span>0📶</span><span>100</span>
+            <span>0</span><span>100</span>
         </div>
         <div id="gauge-val-display" style="font-size:22px; font-weight:bold; margin:8px 0;">50</div>
         <button class="menu-btn" id="gauge-stop-btn" onclick="stopGauge()">STOP!</button>
@@ -1281,8 +1276,14 @@ function openPowerGauge(type) {
 function stopGauge() {
     if (!STATE.gaugeRunning) return;
     
+    // 防御フェーズでの役割分離チェック（防御プレイヤー以外はガードボタン操作不可）
     if (STATE.phase === 'GUARD' && STATE.myIndex !== STATE.targetPlayerIndex) {
         alert("あなたではなく、防御プレイヤーの操作番です！");
+        return;
+    }
+    // 攻撃フェーズ関連の操作はターンプレイヤーのみ許可
+    if (STATE.phase !== 'GUARD' && STATE.turnIndex !== STATE.myIndex) {
+        alert("あなたのターンではありません！");
         return;
     }
 
@@ -1311,9 +1312,13 @@ function stopGauge() {
 
 function showTrajectoryPreview() {
     closePopup();
+    
+    // 軌道確認時は全体ビューに強制変更
     STATE.isZoomed = false;
     STATE.camAngle = 0;
     updateCameraPosition();
+
+    if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
 
     if (STATE.selectedBlock) {
         const bPos = STATE.selectedBlock.mesh.position;
@@ -1322,17 +1327,32 @@ function showTrajectoryPreview() {
         points.push(new THREE.Vector3(bPos.x + (STATE.angleHVal - 50) * 0.1, bPos.y + (STATE.angleVVal - 50) * 0.1, bPos.z - 10));
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        // 赤の点線を太く強調（linewidthはプラットフォームによっては限界がありますが太い表現）
         const material = new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.8, gapSize: 0.3, linewidth: 5 });
         trajectoryLine = new THREE.Line(geometry, material);
         trajectoryLine.computeLineDistances();
         scene.add(trajectoryLine);
     }
 
-    showPopup("軌道確認", "全体図の赤い点線が打ち抜き位置と角度です。", "攻撃パワー決定へ", () => {
-        if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
-        STATE.phase = 'POWER';
-        openPowerGauge('POWER');
-    });
+    // 軌道確認中メッセージを一時表示（ポップアップを一度非表示にして3Dタワー全体が確認できるように）
+    let elapsedRot = 0;
+    const rotInterval = setInterval(() => {
+        elapsedRot += 0.05;
+        STATE.camAngle += 0.05;
+        updateCameraPosition();
+        if (elapsedRot >= Math.PI * 2) {
+            clearInterval(rotInterval);
+            STATE.camAngle = 0;
+            updateCameraPosition();
+            
+            // 1周回転したのち次のアクションに進む流れ
+            showPopup("軌道確認完了", "全体図の確認が終わりました。", "攻撃パワー決定へ", () => {
+                if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
+                STATE.phase = 'POWER';
+                openPowerGauge('POWER');
+            });
+        }
+    }, 30);
 }
 
 function resolveBattleResult() {
