@@ -2,976 +2,1080 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ジェンガアタック</title>
+    <!-- Three.js (3D描画) & Cannon.js (物理演算) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&display=swap');
-
         * {
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
             margin: 0;
             padding: 0;
+            font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
         }
-
         body, html {
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #1a1a1a;
-            font-family: 'DotGothic16', sans-serif;
+            background-color: #111;
             color: #fff;
         }
 
-        #game-container {
-            position: relative;
+        /* 全体コンテナ（画面比率フィット） */
+        #app-container {
             width: 100vw;
             height: 100vh;
-            max-width: 500px;
-            margin: 0 auto;
-            background: #2b2b2b;
-            overflow: hidden;
+            position: relative;
             display: flex;
             flex-direction: column;
+            background: #1a1a1a;
         }
 
-        /* スクリーン共通 */
-        .screen {
+        /* 3Dキャンバス領域 (70%) */
+        #canvas-container {
+            width: 100%;
+            height: 70%;
+            position: relative;
+        }
+        #three-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 右側/下部 GUI領域 (30%) */
+        #gui-container {
+            width: 100%;
+            height: 30%;
+            background: rgba(20, 20, 30, 0.95);
+            border-top: 2px solid #444;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            gap: 6px;
+            z-index: 10;
+        }
+
+        /* GUI内部 レイアウト */
+        .gui-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .player-list-mini {
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+            width: 70%;
+        }
+        .player-card {
+            background: #2a2a3a;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            min-width: 65px;
+            border: 1px solid #555;
+        }
+        .player-card.active {
+            border-color: #ffcc00;
+            background: #3a3a2a;
+        }
+        .player-card .hp-bar {
+            height: 4px;
+            background: #ff4444;
+            width: 100%;
+            margin-top: 2px;
+            border-radius: 2px;
+        }
+
+        .timer-box {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffcc00;
+            background: #000;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid #ffcc00;
+        }
+
+        /* アイテムボタン群 */
+        .item-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+        }
+        .item-btn {
+            background: #334;
+            color: #888;
+            border: 1px solid #555;
+            padding: 6px 0;
+            font-size: 10px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .item-btn.active {
+            background: #ff9900;
+            color: #000;
+            border-color: #fff;
+            box-shadow: 0 0 5px #ff9900;
+        }
+
+        /* 操作ボタン群 */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+        }
+        .ctrl-btn {
+            background: #225588;
+            color: white;
+            border: none;
+            padding: 8px 0;
+            font-size: 11px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .ctrl-btn:active { background: #3377bb; }
+
+        /* オーバーレイ表示（タイトル、メニュー、ポップアップ） */
+        .overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 10;
-            background: rgba(20, 20, 20, 0.95);
+            z-index: 100;
+            padding: 20px;
         }
-
         .hidden { display: none !important; }
 
-        /* ① タイトル画面 */
-        .pixel-title {
-            font-family: 'Press Start 2P', cursive;
-            font-size: 28px;
-            color: #f39c12;
-            text-shadow: 4px 4px 0px #e67e22, 8px 8px 0px #d35400, 12px 12px 0px #000;
+        /* タイトル画面 */
+        .title-logo {
+            font-size: 36px;
+            font-weight: 900;
+            color: #ff3333;
+            text-shadow: 0 0 10px #ff0000, 3px 3px 0px #fff;
+            margin-bottom: 40px;
             text-align: center;
-            line-height: 1.4;
-            margin-bottom: 50px;
-            padding: 10px;
-            background: #8e44ad;
-            border: 4px solid #f1c40f;
-            box-shadow: inset -4px -4px 0px #4a235a;
+            letter-spacing: 2px;
         }
-
-        .blink {
-            animation: blinker 1.2s linear infinite;
+        .blink-text {
+            animation: blink 1.2s infinite;
             font-size: 18px;
-            color: #2ecc71;
-            margin-top: 40px;
+            color: #ffff00;
         }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-        @keyframes blinker {
-            50% { opacity: 0; }
-        }
-
-        /* ボタン共通 */
-        .btn {
-            background: #3498db;
-            color: white;
-            border: none;
-            border-bottom: 4px solid #2980b9;
-            padding: 12px 24px;
-            font-size: 18px;
-            font-family: 'DotGothic16', sans-serif;
-            margin: 8px;
+        /* メニューUI */
+        .menu-box {
+            width: 90%;
+            max-width: 320px;
+            background: #222;
+            border: 2px solid #555;
             border-radius: 8px;
-            cursor: pointer;
-            min-width: 160px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
             text-align: center;
         }
-        .btn:active {
-            transform: translateY(2px);
-            border-bottom: 2px solid #2980b9;
-        }
-
-        /* 入力フォーム */
-        input[type="text"] {
-            font-size: 20px;
-            padding: 8px;
-            text-align: center;
+        .menu-btn {
+            background: #444;
+            color: #fff;
+            padding: 12px;
+            border: 1px solid #777;
             border-radius: 6px;
-            border: 2px solid #3498db;
-            margin: 10px 0;
-            width: 80%;
-            font-family: 'DotGothic16', sans-serif;
+            font-size: 16px;
+            font-weight: bold;
         }
-
-        /* ポップアップ・ダイアログ */
-        .popup {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            background: #333;
-            border: 4px solid #f39c12;
-            padding: 20px;
-            border-radius: 12px;
-            z-index: 100;
-            width: 85%;
+        .menu-btn:active { background: #666; }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
             text-align: center;
-            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            border-radius: 4px;
+            border: 1px solid #666;
+            background: #111;
+            color: #fff;
         }
 
-        /* Shake 演出 */
-        .shake {
-            animation: shakeAnim 0.3s ease-in-out infinite;
+        /* ゲーミング＆演出オーバーレイ */
+        #huge-count {
+            position: absolute;
+            top: 35%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 90px;
+            font-weight: 900;
+            color: #ff0055;
+            text-shadow: 0 0 20px #ff0000;
+            z-index: 50;
+            pointer-events: none;
         }
-        @keyframes shakeAnim {
+        #power-gauge-overlay {
+            position: absolute;
+            top: 40%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 85%;
+            background: rgba(0,0,0,0.9);
+            border: 2px solid #fff;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 60;
+        }
+        .gauge-bar-bg {
+            width: 100%;
+            height: 30px;
+            background: linear-gradient(to right, blue 0%, red 100%);
+            position: relative;
+            margin: 10px 0;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        .gauge-pointer {
+            width: 6px;
+            height: 100%;
+            background: #fff;
+            position: absolute;
+            top: 0; left: 0%;
+            box-shadow: 0 0 5px #000;
+        }
+        .power-impact-text {
+            font-size: 32px;
+            font-weight: 900;
+            color: #ff3300;
+            text-shadow: 0 0 10px #ffff00;
+        }
+        .guard-impact-text {
+            font-size: 28px;
+            font-weight: 900;
+            color: #0099ff;
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        /* くしゃみ演出汚れ */
+        #spit-overlay {
+            position: absolute;
+            top:0; left:0; width:100%; height:100%;
+            pointer-events: none;
+            z-index: 80;
+            background: radial-gradient(circle at 30% 40%, rgba(200,255,0,0.4) 0%, transparent 20%),
+                        radial-gradient(circle at 70% 60%, rgba(150,255,0,0.5) 0%, transparent 25%),
+                        radial-gradient(circle at 50% 20%, rgba(220,255,0,0.3) 0%, transparent 15%);
+        }
+
+        /* 画面シェイク animation */
+        .shake {
+            animation: shake 0.3s infinite;
+        }
+        @keyframes shake {
             0% { transform: translate(0, 0); }
             20% { transform: translate(-10px, 5px); }
             40% { transform: translate(10px, -5px); }
-            60% { transform: translate(-5px, 10px); }
-            80% { transform: translate(5px, -5px); }
+            60% { transform: translate(-5px, -10px); }
+            80% { transform: translate(5px, 10px); }
             100% { transform: translate(0, 0); }
-        }
-
-        /* ③④ ゲーム画面レイアウト (7:3 GUI) */
-        #game-view {
-            display: flex;
-            width: 100%;
-            height: 100%;
-            position: relative;
-        }
-
-        #canvas-container {
-            width: 70%;
-            height: 100%;
-            position: relative;
-            background: #111;
-        }
-
-        canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        #gui-panel {
-            width: 30%;
-            height: 100%;
-            background: #222;
-            border-left: 2px solid #444;
-            display: flex;
-            flex-direction: column;
-            padding: 5px;
-            font-size: 12px;
-            z-index: 5;
-        }
-
-        .gui-section {
-            background: #333;
-            margin-bottom: 6px;
-            padding: 4px;
-            border-radius: 4px;
-            border: 1px solid #555;
-        }
-
-        .player-info {
-            margin-bottom: 4px;
-            padding-bottom: 2px;
-            border-bottom: 1px dashed #555;
-        }
-        .player-info.active {
-            color: #f1c40f;
-            font-weight: bold;
-        }
-
-        .timer-display {
-            font-size: 18px;
-            color: #e74c3c;
-            text-align: center;
-            font-weight: bold;
-        }
-
-        .item-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2px;
-        }
-        .item-btn {
-            background: #444;
-            color: #aaa;
-            border: 1px solid #666;
-            font-size: 10px;
-            padding: 4px 2px;
-            border-radius: 3px;
-            text-align: center;
-        }
-        .item-btn.active {
-            background: #e67e22;
-            color: #fff;
-            border-color: #f39c12;
-            box-shadow: 0 0 5px #f39c12;
-            cursor: pointer;
-        }
-
-        .control-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-            margin-top: auto;
-        }
-        .ctrl-btn {
-            background: #27ae60;
-            color: white;
-            border: none;
-            padding: 5px;
-            font-size: 11px;
-            border-radius: 3px;
-        }
-
-        /* 画面中央の大カウントダウン */
-        #big-timer {
-            position: absolute;
-            top: 40%; left: 35%;
-            transform: translate(-50%, -50%);
-            font-size: 80px;
-            color: #e74c3c;
-            font-weight: bold;
-            text-shadow: 0 0 10px #000;
-            pointer-events: none;
-            z-index: 50;
-        }
-
-        /* パワーバー表示 */
-        #power-bar-container {
-            position: absolute;
-            bottom: 20px;
-            left: 5%;
-            width: 60%;
-            background: rgba(0,0,0,0.8);
-            border: 2px solid #fff;
-            padding: 10px;
-            border-radius: 8px;
-            z-index: 60;
-        }
-        .bar-bg {
-            width: 100%;
-            height: 25px;
-            background: linear-gradient(to right, blue, cyan, green, yellow, red);
-            position: relative;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .bar-pointer {
-            position: absolute;
-            top: 0; width: 4px; height: 100%;
-            background: #fff;
-            box-shadow: 0 0 5px #000;
-        }
-        .bar-ticks {
-            display: flex;
-            justify-content: space-between;
-            font-size: 9px;
-            margin-top: 2px;
-        }
-
-        /* つば汚れ演出（くしゃみアイテム用） */
-        #sneeze-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-            z-index: 80;
-            background: radial-gradient(circle at 30% 40%, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 20%),
-                        radial-gradient(circle at 70% 60%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 25%),
-                        radial-gradient(circle at 50% 20%, rgba(200,255,200,0.6) 0%, rgba(200,255,200,0) 15%);
         }
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <!-- ① タイトル画面 -->
-    <div id="screen-title" class="screen">
-        <div class="pixel-title">ジェンガ<br>アタック</div>
-        <div class="blink">タップしてスタート</div>
+<div id="app-container">
+    <!-- 3D 視界エリア -->
+    <div id="canvas-container">
+        <canvas id="three-canvas"></canvas>
+        <div id="huge-count" class="hidden">5</div>
+        <div id="spit-overlay" class="hidden"></div>
     </div>
 
-    <!-- ② メニュー & ホスト/ゲスト接続設定 -->
-    <div id="screen-menu" class="screen hidden">
-        <h2>メインメニュー</h2>
-        <button class="btn" onclick="selectMenu(1)">1. ホスト</button>
-        <button class="btn" onclick="selectMenu(2)">2. ゲスト</button>
-        <button class="btn" onclick="selectMenu(3)">3. 終了</button>
-    </div>
-
-    <!-- ホスト設定画面 -->
-    <div id="screen-host-config" class="screen hidden">
-        <h3>プレイ人数選択</h3>
-        <div style="display:flex; gap:5px; margin:15px 0;">
-            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(1)">1</button>
-            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(2)">2</button>
-            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(3)">3</button>
-            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(4)">4</button>
-            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(5)">5</button>
+    <!-- GUIコントロールエリア -->
+    <div id="gui-container">
+        <div class="gui-row">
+            <div class="player-list-mini" id="gui-player-list"></div>
+            <div class="timer-box" id="gui-timer">20</div>
         </div>
-        <h3>プレイヤーネーム (6文字以内)</h3>
-        <input type="text" id="host-name" maxlength="6" placeholder="ひらがな・数字">
-        <button class="btn" onclick="confirmHostConfig()">決定</button>
-    </div>
 
-    <!-- ホスト待機画面 -->
-    <div id="screen-host-wait" class="screen hidden">
-        <p>接続ID: <span id="display-room-id" style="font-size:28px; color:#f1c40f;">----</span></p>
-        <div class="blink">接続待機中...</div>
-        <div id="host-player-list" style="margin: 20px 0; text-align:left;"></div>
-        <button id="btn-start-game" class="btn hidden" onclick="startRoulette()">ゲーム開始</button>
-    </div>
+        <!-- アイテムボタン一覧 -->
+        <div class="item-grid">
+            <div class="item-btn" id="item-ojama" onclick="useItem('ojama')">お邪魔<br><span id="count-ojama">0</span></div>
+            <div class="item-btn" id="item-sneeze" onclick="useItem('sneeze')">くしゃみ<br><span id="count-sneeze">0</span></div>
+            <div class="item-btn" id="item-renzoku" onclick="useItem('renzoku')">連続<br><span id="count-renzoku">0</span></div>
+            <div class="item-btn" id="item-pass" onclick="useItem('pass')">パス<br><span id="count-pass">0</span></div>
+            <div class="item-btn" id="item-ganriki" onclick="useItem('ganriki')">眼力<br><span id="count-ganriki">0</span></div>
+            <div class="item-btn" id="item-rob" onclick="useItem('rob')">強奪<br><span id="count-rob">0</span></div>
+        </div>
 
-    <!-- ゲスト設定画面 -->
-    <div id="screen-guest-config" class="screen hidden">
-        <h3>プレイヤーネーム (6文字以内)</h3>
-        <input type="text" id="guest-name" maxlength="6" placeholder="ひらがな・数字">
-        <button class="btn" onclick="confirmGuestName()">決定</button>
-    </div>
-
-    <!-- ゲストID入力画面 -->
-    <div id="screen-guest-id" class="screen hidden">
-        <h3>4桁の接続IDを入力</h3>
-        <input type="text" id="input-room-id" maxlength="4" placeholder="1234">
-        <button class="btn" onclick="connectAsGuest()">接続</button>
-    </div>
-
-    <!-- ③④ ゲーム画面 -->
-    <div id="screen-game" class="screen hidden" style="padding:0; background:#000;">
-        <div id="game-view">
-            <!-- 70% ゲーム表示エリア -->
-            <div id="canvas-container">
-                <canvas id="jengaCanvas"></canvas>
-                <div id="big-timer" class="hidden">5</div>
-                
-                <!-- 威力/ガード パワーバー -->
-                <div id="power-bar-container" class="hidden">
-                    <div id="power-title" style="text-align:center; font-size:12px; margin-bottom:2px;">威力決定！</div>
-                    <div class="bar-bg">
-                        <div id="bar-pointer" class="bar-pointer"></div>
-                    </div>
-                    <div class="bar-ticks">
-                        <span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span>
-                    </div>
-                    <button class="btn" style="width:100%; margin:5px 0 0 0; padding:4px;" onclick="stopPowerBar()">STOP</button>
-                </div>
-
-                <!-- くしゃみ汚れ用オーバーレイ -->
-                <div id="sneeze-overlay" class="hidden"></div>
-            </div>
-
-            <!-- 30% GUIパネル -->
-            <div id="gui-panel">
-                <div class="gui-section">
-                    <div style="font-weight:bold; border-bottom:1px solid #777;">PLAYERS</div>
-                    <div id="gui-player-list"></div>
-                </div>
-
-                <div class="gui-section" style="text-align:center;">
-                    <div>TIME</div>
-                    <div id="gui-timer" class="timer-display">20</div>
-                </div>
-
-                <div class="gui-section">
-                    <div style="font-size:10px; margin-bottom:2px;">ITEMS</div>
-                    <div class="item-grid">
-                        <div id="item-ojama" class="item-btn" onclick="useItem('ojama')">お邪魔<br><span id="cnt-ojama">0</span></div>
-                        <div id="item-sneeze" class="item-btn" onclick="useItem('sneeze')">くしゃみ<br><span id="cnt-sneeze">0</span></div>
-                        <div id="item-double" class="item-btn" onclick="useItem('double')">連続<br><span id="cnt-double">0</span></div>
-                        <div id="item-pass" class="item-btn" onclick="useItem('pass')">パス<br><span id="cnt-pass">0</span></div>
-                        <div id="item-vision" class="item-btn" onclick="useItem('vision')">眼力<br><span id="cnt-vision">0</span></div>
-                        <div id="item-steal" class="item-btn" onclick="useItem('steal')">強奪<br><span id="cnt-steal">0</span></div>
-                    </div>
-                </div>
-
-                <div class="control-grid">
-                    <button class="ctrl-btn" onclick="setCameraView('all')">全体</button>
-                    <button class="ctrl-btn" onclick="rotateFacing()">面(1-4)</button>
-                    <button class="ctrl-btn" onclick="setCameraView('close')">近接</button>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:2px;">
-                        <button class="ctrl-btn" onclick="setSection(1)">段1-5</button>
-                        <button class="ctrl-btn" onclick="setSection(2)">段6-10</button>
-                        <button class="ctrl-btn" onclick="setSection(3)">段11-15</button>
-                        <button class="ctrl-btn" onclick="setSection(4)">段16-20</button>
-                    </div>
-                    <button class="ctrl-btn" style="background:#e74c3c; margin-top:5px;" onclick="endTurn()">ターン終了</button>
-                </div>
-            </div>
+        <!-- 操作ボタン一覧 -->
+        <div class="controls-grid">
+            <button class="ctrl-btn" onclick="setViewMode('all')">全体</button>
+            <button class="ctrl-btn" onclick="cycleFace()">面 <span id="face-num">1</span></button>
+            <button class="ctrl-btn" onclick="setViewMode('zoom')">近接</button>
+            <button class="ctrl-btn" onclick="cycleTier()">段数 <span id="tier-num">1</span></button>
         </div>
     </div>
 
-    <!-- ポップアップダイアログ表示用 -->
-    <div id="popup-dialog" class="popup hidden">
-        <div id="popup-content"></div>
+    <!-- UI Overlay : タイトル画面 -->
+    <div id="title-screen" class="overlay">
+        <div class="title-logo">ジェンガアタック</div>
+        <div class="blink-text" onclick="showMenu()">TAP TO START</div>
+    </div>
+
+    <!-- UI Overlay : メニュー画面 -->
+    <div id="menu-screen" class="overlay hidden">
+        <div class="menu-box" id="menu-main">
+            <h3>メインメニュー</h3>
+            <button class="menu-btn" onclick="selectHost()">１．ホスト</button>
+            <button class="menu-btn" onclick="selectGuest()">２．ゲスト</button>
+            <button class="menu-btn" onclick="location.reload()">３．終了</button>
+        </div>
+
+        <!-- ホスト設定 -->
+        <div class="menu-box hidden" id="menu-host">
+            <h3>人数選択</h3>
+            <div style="display:flex; gap:5px; justify-content:center;">
+                <button class="menu-btn" onclick="setPlayerCount(1)">1</button>
+                <button class="menu-btn" onclick="setPlayerCount(2)">2</button>
+                <button class="menu-btn" onclick="setPlayerCount(3)">3</button>
+                <button class="menu-btn" onclick="setPlayerCount(4)">4</button>
+                <button class="menu-btn" onclick="setPlayerCount(5)">5</button>
+            </div>
+        </div>
+
+        <!-- 名前入力 -->
+        <div class="menu-box hidden" id="menu-name">
+            <h3>プレイヤーネーム</h3>
+            <p style="font-size:11px; color:#aaa;">(ひらがな・数字 6文字まで)</p>
+            <input type="text" id="player-name-input" maxlength="6" placeholder="なまえ">
+            <button class="menu-btn" onclick="submitName()">決定</button>
+        </div>
+
+        <!-- 接続待機（ホスト） -->
+        <div class="menu-box hidden" id="menu-lobby">
+            <h3>接続待機中...</h3>
+            <div class="blink-text" style="font-size:24px;" id="room-id-display">ID: ----</div>
+            <div id="joined-players-list" style="text-align:left; font-size:12px; margin:10px 0;"></div>
+            <button class="menu-btn hidden" id="btn-start-game" onclick="startOrderRoulette()">ゲーム開始</button>
+        </div>
+
+        <!-- ゲスト接続ID入力 -->
+        <div class="menu-box hidden" id="menu-guest-id">
+            <h3>接続ID入力 (4桁)</h3>
+            <input type="text" id="guest-id-input" maxlength="4" placeholder="1234">
+            <button class="menu-btn" onclick="connectGuest()">接続</button>
+        </div>
+    </div>
+
+    <!-- UI Overlay : 汎用ポップアップ / ルーレット / ゲージ判定 -->
+    <div id="popup-overlay" class="overlay hidden">
+        <div class="menu-box" id="popup-content">
+            <h3 id="popup-title">タイトル</h3>
+            <p id="popup-body">本文</p>
+            <button class="menu-btn" id="popup-btn" onclick="closePopup()">OK</button>
+        </div>
+    </div>
+
+    <!-- 威力/ガード決定 ゲージ -->
+    <div id="power-gauge-overlay" class="hidden">
+        <h3 id="gauge-owner-title">ターンプレイヤー</h3>
+        <div class="gauge-bar-bg">
+            <div class="gauge-pointer" id="gauge-pointer"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:10px;">
+            <span>0📶</span><span>100</span>
+        </div>
+        <div id="gauge-val-display" style="font-size:20px; font-weight:bold; margin:5px 0;">50</div>
+        <button class="menu-btn" id="gauge-stop-btn" onclick="stopGauge()">STOP!</button>
     </div>
 </div>
 
 <script>
-    /* --- グローバルゲーム状態マネージャー --- */
-    const state = {
-        screen: 'title',
-        isHost: false,
-        maxPlayers: 1,
-        players: [], // { name, hp, blocks, items: {} }
-        roomId: '',
-        myIndex: 0,
-        currentTurn: 0,
-        turnTimer: 20,
-        timerInterval: null,
-        
-        // カメラ・表示設定
-        facingFace: 1, // 1:正面, 2:右, 3:奥, 4:左
-        viewMode: 'all', // all, close
-        selectedSection: 1, // 1~4
-        
-        // ジェンガデータ (20段 x 3本)
-        blocks: [],
-        
-        // パワー選択状態
-        powerBarActive: false,
-        powerValue: 0,
-        powerDir: 1,
-        powerSpeed: 2,
-        powerCallback: null,
+/* ==========================================================================
+   1. ゲームデータ ＆ 状態管理 (State Management)
+   ========================================================================== */
+const STATE = {
+    mode: 'TITLE', // TITLE, MENU, LOBBY, GAME, OVER
+    isHost: false,
+    playerCount: 1,
+    myIndex: 0,
+    players: [], // { name, hp, score, items: {}, handColor, tattoo }
+    turnIndex: 0,
+    timer: 20,
+    timerInterval: null,
+    selectedBlock: null,
+    currentFace: 1,
+    currentTier: 1,
+    activeItem: null,
+    gaugeRunning: false,
+    gaugeVal: 0,
+    gaugeSpeed: 2,
+    gaugePos: 0,
+    gaugeDir: 1,
+    powerScore: 0,
+    guardScore: 0,
+    phase: 'SELECT' // SELECT, ANGLE_H, ANGLE_V, POWER, GUARD, EXECUTE
+};
 
-        // アイテム状態
-        activeEffects: {
-            ojama: null, // { target, type }
-            sneeze: false,
-            double: false
-        }
-    };
+// 手の個性データ（ビジュアル演出用）
+const HAND_SKINS = [
+    { skin: 0xffdbac, nail: 0xff0055, length: 1.0 },
+    { skin: 0x8d5524, nail: 0x00ffff, length: 1.2 },
+    { skin: 0xe0ac69, nail: 0x9900cc, length: 0.9 },
+    { skin: 0xf1c27d, nail: 0x00ff00, length: 1.1 },
+    { skin: 0xc68642, nail: 0xff6600, length: 1.0 }
+];
 
-    // 初期化
-    window.onload = () => {
-        setupEventListeners();
-        initJengaBlocks();
-    };
+/* ==========================================================================
+   2. Three.js ＆ Cannon.js (3Dグラフィックス＆物理エンジン設定)
+   ========================================================================== */
+let scene, camera, renderer, world;
+let blocks = []; // { mesh, body, id, tier, isHighlighted }
+let handMeshes = [];
 
-    function setupEventListeners() {
-        document.getElementById('screen-title').addEventListener('click', () => {
-            showScreen('screen-menu');
-        });
-    }
+function init3D() {
+    const container = document.getElementById('canvas-container');
+    
+    // シーン
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a24);
 
-    function showScreen(id) {
-        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-        document.getElementById(id).classList.remove('hidden');
-    }
+    // カメラ
+    camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+    camera.position.set(0, 12, 25);
+    camera.lookAt(0, 6, 0);
 
-    /* --- ② メニュー & 接続フロー --- */
-    function selectMenu(option) {
-        if (option === 1) {
-            state.isHost = true;
-            showScreen('screen-host-config');
-        } else if (option === 2) {
-            state.isHost = false;
-            showScreen('screen-guest-config');
-        } else if (option === 3) {
-            showScreen('screen-title');
-        }
-    }
+    // レンダー
+    renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.shadowMap.enabled = true;
 
-    function setPlayerCount(num) {
-        state.maxPlayers = num;
-    }
+    // 照明
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
 
-    function validateName(name) {
-        const regex = /^[ぁ-んー0-9]{1,6}$/;
-        return regex.test(name);
-    }
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(10, 20, 10);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
 
-    function confirmHostConfig() {
-        const name = document.getElementById('host-name').value.trim();
-        if (!validateName(name)) {
-            alert('名前はひらがな・数字のみで6文字以内にしてください');
-            return;
-        }
-        state.players = [{ name: name, hp: 100, blocks: 0, items: {ojama:0, sneeze:0, double:0, pass:0, vision:0, steal:0} }];
-        state.roomId = Math.floor(1000 + Math.random() * 9000).toString();
-        document.getElementById('display-room-id').innerText = state.roomId;
-        
-        updateHostWaitList();
-        showScreen('screen-host-wait');
+    // 物理ワールド
+    world = new CANNON.World();
+    world.gravity.set(0, -9.82, 0);
+    world.broadphase = new CANNON.NaiveBroadphase();
+    world.solver.iterations = 10;
 
-        // NPCプレイヤーの自動補完ロジック (デモ・オフライン兼用)
-        simulateConnections();
-    }
+    // 床・台座
+    createTable();
 
-    function simulateConnections() {
-        const dummyNames = ['たろう', 'はなこ', 'じろう', 'さくら', 'けんと'];
-        let count = 1;
-        const interval = setInterval(() => {
-            if (count < state.maxPlayers) {
-                state.players.push({
-                    name: dummyNames[count - 1],
-                    hp: 100,
-                    blocks: 0,
-                    items: {ojama:1, sneeze:1, double:0, pass:1, vision:0, steal:0}
-                });
-                count++;
-                updateHostWaitList();
-            } else {
-                clearInterval(interval);
-                document.getElementById('btn-start-game').classList.remove('hidden');
-            }
-        }, 1500);
-    }
+    // ループ開始
+    animate();
+}
 
-    function updateHostWaitList() {
-        const list = document.getElementById('host-player-list');
-        list.innerHTML = '<b>参加プレイヤー:</b><br>' + state.players.map(p => `・${p.name}`).join('<br>');
-    }
+function createTable() {
+    // 視覚用
+    const geo = new THREE.CylinderGeometry(6, 6, 1, 32);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x442211, roughness: 0.4 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = -0.5;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
 
-    function confirmGuestName() {
-        const name = document.getElementById('guest-name').value.trim();
-        if (!validateName(name)) {
-            alert('名前はひらがな・数字のみで6文字以内にしてください');
-            return;
-        }
-        state.tempGuestName = name;
-        showScreen('screen-guest-id');
-    }
+    // 物理用
+    const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Cylinder(6, 6, 1, 32) });
+    groundBody.position.set(0, -0.5, 0);
+    world.addBody(groundBody);
+}
 
-    function connectAsGuest() {
-        const id = document.getElementById('input-room-id').value.trim();
-        if (id.length !== 4) {
-            alert('4桁の数字を入力してください');
-            return;
-        }
-        // デモ用擬似接続成功処理
-        showPopup('接続成功！ホストの開始を待っています...', () => {});
-        setTimeout(() => {
-            closePopup();
-            // ホスト設定で進行
-            state.players = [
-                { name: 'ほすと', hp: 100, blocks: 0, items: {ojama:0, sneeze:0, double:0, pass:0, vision:0, steal:0} },
-                { name: state.tempGuestName, hp: 100, blocks: 0, items: {ojama:0, sneeze:0, double:0, pass:0, vision:0, steal:0} }
+// ジェンガタワー構築（20段、1段3本）
+function buildJengaTower() {
+    // 既存ブロックの削除
+    blocks.forEach(b => {
+        scene.remove(b.mesh);
+        world.remove(b.body);
+    });
+    blocks = [];
+
+    const blockWidth = 1.0;
+    const blockLength = 3.0;
+    const blockHeight = 0.6;
+
+    for (let val = 0; val < 20; val++) { // 20段
+        const isRotated = (val % 2 === 1);
+        for (let j = 0; j < 3; j++) { // 3本
+            const offset = (j - 1) * (blockWidth + 0.05);
+
+            // Three.js メッシュ
+            const geometry = new THREE.BoxGeometry(
+                isRotated ? blockLength : blockWidth,
+                blockHeight,
+                isRotated ? blockWidth : blockLength
+            );
+            
+            // テクスチャ代わりに側面に「良夫」刻印用の色設定
+            const materials = [
+                new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
+                new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
+                new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
+                new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
+                new THREE.MeshStandardMaterial({ color: 0xb58863 }), // 刻印面イメージ
+                new THREE.MeshStandardMaterial({ color: 0xb58863 })
             ];
-            startRoulette();
-        }, 1500);
-    }
 
-    /* --- 順番決めルーレット --- */
-    function startRoulette() {
-        let textIndex = 0;
-        showPopup(`
-            <h3>順番決めルーレット</h3>
-            <div id="roulette-display" class="shake" style="font-size:24px; margin:20px; color:#f1c40f;">${state.players[0].name}</div>
-            <button class="btn" onclick="stopRoulette()">ストップ</button>
-        `);
+            const mesh = new THREE.Mesh(geometry, materials);
+            const posX = isRotated ? 0 : offset;
+            const posY = val * (blockHeight + 0.02) + blockHeight / 2;
+            const posZ = isRotated ? offset : 0;
 
-        state.rouletteInterval = setInterval(() => {
-            textIndex = (textIndex + 1) % state.players.length;
-            document.getElementById('roulette-display').innerText = state.players[textIndex].name;
-        }, 80);
-    }
+            mesh.position.set(posX, posY, posZ);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
 
-    function stopRoulette() {
-        clearInterval(state.rouletteInterval);
-        // シャッフル
-        state.players.sort(() => Math.random() - 0.5);
-
-        const listHtml = state.players.map((p, i) => `${i + 1}番目: ${p.name}`).join('<br>');
-        showPopup(`
-            <h3>順番決定！</h3>
-            <div style="margin:15px 0;">${listHtml}</div>
-            <button class="btn" onclick="startGame()">全員確認してゲーム開始</button>
-        `);
-    }
-
-    /* --- ③③ ゲームメインループ & GUI --- */
-    function startGame() {
-        closePopup();
-        showScreen('screen-game');
-        initCanvas();
-        updateGUI();
-        startTurn();
-    }
-
-    function startTurn() {
-        state.turnTimer = 20;
-        document.getElementById('gui-timer').innerText = state.turnTimer;
-        document.getElementById('big-timer').classList.add('hidden');
-
-        if (state.timerInterval) clearInterval(state.timerInterval);
-        
-        state.timerInterval = setInterval(() => {
-            state.turnTimer--;
-            document.getElementById('gui-timer').innerText = state.turnTimer;
-
-            if (state.turnTimer <= 5 && state.turnTimer > 0) {
-                const bt = document.getElementById('big-timer');
-                bt.classList.remove('hidden');
-                bt.innerText = state.turnTimer;
+            // Cannon.js 物理ボディ
+            const shape = new CANNON.Box(new CANNON.Vec3(
+                (isRotated ? blockLength : blockWidth) / 2,
+                blockHeight / 2,
+                (isRotated ? blockWidth : blockLength) / 2
+            ));
+            const body = new CANNON.Body({ mass: 0.8, shape: shape });
+            body.position.set(posX, posY, posZ);
+            if (isRotated) {
+                body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
             }
+            world.addBody(body);
 
-            if (state.turnTimer <= 0) {
-                clearInterval(state.timerInterval);
-                alert(`${state.players[state.currentTurn].name}の時間切れ！`);
-                endTurn();
-            }
-        }, 1000);
-
-        updateGUI();
-    }
-
-    function endTurn() {
-        clearInterval(state.timerInterval);
-        state.currentTurn = (state.currentTurn + 1) % state.players.length;
-        
-        // くしゃみ効果解除判定等
-        document.getElementById('sneeze-overlay').classList.add('hidden');
-        
-        startTurn();
-    }
-
-    function updateGUI() {
-        const list = document.getElementById('gui-player-list');
-        list.innerHTML = state.players.map((p, i) => `
-            <div class="player-info ${i === state.currentTurn ? 'active' : ''}">
-                ${p.name} <br>
-                HP: ${p.hp}/100 | 獲得: ${p.blocks}本
-            </div>
-        `).join('');
-
-        // アイテムボタン表示更新
-        const curItems = state.players[state.currentTurn].items;
-        for (let key in curItems) {
-            const btn = document.getElementById(`item-${key}`);
-            const cnt = document.getElementById(`cnt-${key}`);
-            if (btn && cnt) {
-                cnt.innerText = curItems[key];
-                if (curItems[key] > 0) btn.classList.add('active');
-                else btn.classList.remove('active');
-            }
-        }
-    }
-
-    /* --- ④ ジェンガ物理描画 Canvas (簡易2.5D表現) --- */
-    let canvas, ctx;
-
-    function initJengaBlocks() {
-        state.blocks = [];
-        for (let level = 0; level < 20; level++) {
-            const isEven = level % 2 === 0;
-            for (let i = 0; i < 3; i++) {
-                state.blocks.push({
-                    level: level + 1,
-                    index: i,
-                    removed: false,
-                    isEven: isEven,
-                    glowing: false
-                });
-            }
-        }
-    }
-
-    function initCanvas() {
-        canvas = document.getElementById('jengaCanvas');
-        ctx = canvas.getContext('2d');
-        resizeCanvas();
-        requestAnimationFrame(renderLoop);
-
-        canvas.addEventListener('click', handleCanvasClick);
-    }
-
-    function resizeCanvas() {
-        const container = document.getElementById('canvas-container');
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-    }
-
-    function renderLoop() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // 背景描画
-        ctx.fillStyle = '#111';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // 手の演出描画 (ランダム風爪色・タトゥー表示)
-        drawHandOverlay();
-
-        // ジェンガタワー描画
-        const centerX = canvas.width / 2;
-        const startY = canvas.height - 80;
-        const blockHeight = 12;
-        const blockWidth = 70;
-
-        let visibleBlocks = state.blocks;
-        if (state.viewMode === 'close') {
-            const minLevel = (state.selectedSection - 1) * 5 + 1;
-            const maxLevel = state.selectedSection * 5;
-            visibleBlocks = state.blocks.filter(b => b.level >= minLevel && b.level <= maxLevel);
-        }
-
-        visibleBlocks.forEach(b => {
-            if (b.removed) return;
-
-            let y = startY - (b.level * (blockHeight + 2));
-            if (state.viewMode === 'close') {
-                y = canvas.height - 100 - ((b.level - (state.selectedSection - 1) * 5) * 30);
-            }
-
-            let x = centerX;
-            if (b.isEven) {
-                x += (b.index - 1) * (blockWidth / 3 + 2);
-            } else {
-                x += (b.index - 1) * 5; // 縦向き表現のオフセット
-            }
-
-            // ブロック本体
-            ctx.fillStyle = b.glowing ? '#f1c40f' : '#d2b48c';
-            ctx.fillRect(x - 20, y, 40, state.viewMode === 'close' ? 24 : blockHeight);
-            ctx.strokeStyle = '#8b4513';
-            ctx.strokeRect(x - 20, y, 40, state.viewMode === 'close' ? 24 : blockHeight);
-
-            // 刻印「良夫」
-            ctx.fillStyle = '#5c2c06';
-            ctx.font = '10px DotGothic16';
-            ctx.fillText('良夫', x - 10, y + (state.viewMode === 'close' ? 16 : 10));
-        });
-
-        requestAnimationFrame(renderLoop);
-    }
-
-    function drawHandOverlay() {
-        const curPlayer = state.players[state.currentTurn];
-        ctx.fillStyle = '#e0ac69'; // 肌の色
-        ctx.fillRect(10, canvas.height - 60, 50, 60); // 片手イメージ
-        
-        // 爪の色
-        ctx.fillStyle = '#e74c3c';
-        ctx.fillRect(15, canvas.height - 55, 8, 8);
-
-        // タトゥー（名前）
-        ctx.fillStyle = '#000';
-        ctx.font = '10px DotGothic16';
-        ctx.fillText(curPlayer.name, 12, canvas.height - 20);
-    }
-
-    /* --- ④ 操作 & ブロック抜き・パワー決定フロー --- */
-    function setCameraView(mode) {
-        state.viewMode = mode;
-    }
-
-    function rotateFacing() {
-        state.facingFace = (state.facingFace % 4) + 1;
-        alert(`面 ${state.facingFace} に回転しました`);
-    }
-
-    function setSection(sec) {
-        state.selectedSection = sec;
-        state.viewMode = 'close';
-    }
-
-    function handleCanvasClick(e) {
-        if (state.viewMode !== 'close') {
-            alert('近接画面にして抜きたい棒をタップしてください');
-            return;
-        }
-
-        // 簡易タップ判定（一番手前の対象ブロックを抜く）
-        const targetBlock = state.blocks.find(b => !b.removed && b.level >= (state.selectedSection - 1) * 5 + 1);
-        if (targetBlock) {
-            targetBlock.removed = true;
-            triggerPowerPhase();
-        }
-    }
-
-    function triggerPowerPhase() {
-        clearInterval(state.timerInterval); // 測定中タイマー停止
-        
-        // 1. 威力バー開始
-        document.getElementById('power-bar-container').classList.remove('hidden');
-        document.getElementById('power-title').innerText = `${state.players[state.currentTurn].name} のアタック威力！`;
-        startPowerBarAnimation((attackPower) => {
-            
-            // 2. ガードバー（相手プレイヤー選択／自動）
-            const defender = state.players[(state.currentTurn + 1) % state.players.length];
-            document.getElementById('power-title').innerText = `${defender.name} のガードポイント！`;
-            
-            startPowerBarAnimation((guardPower) => {
-                document.getElementById('power-bar-container').classList.add('hidden');
-                
-                // ダメージ計算
-                let diff = attackPower - guardPower;
-                let msg = `アタック: ${attackPower} POWER\nガード: ${guardPower} GUARD\n`;
-
-                if (attackPower === 100) {
-                    msg += "★クリティカル大爆発★\n";
-                    diff = 100;
-                }
-
-                if (diff <= 0) {
-                    msg += "ガード成功！ ダメージなし！";
-                } else {
-                    let damage = Math.floor(diff / 10);
-                    defender.hp = Math.max(0, defender.hp - damage);
-                    msg += `${defender.name} に ${damage} のダメージ！`;
-                    document.getElementById('game-container').classList.add('shake');
-                    setTimeout(() => document.getElementById('game-container').classList.remove('shake'), 400);
-                }
-
-                state.players[state.currentTurn].blocks++;
-
-                showPopup(`<h3>結果</h3><p>${msg.replace(/\n/g, '<br>')}</p><button class="btn" onclick="postPowerPhase()">次へ</button>`);
+            blocks.push({
+                mesh: mesh,
+                body: body,
+                id: `block_${val}_${j}`,
+                tier: val + 1,
+                isHighlighted: false
             });
-        });
+        }
     }
+}
 
-    function startPowerBarAnimation(callback) {
-        state.powerValue = 0;
-        state.powerDir = 1;
-        state.powerSpeed = Math.random() * 3 + 2;
-        state.powerCallback = callback;
-        state.powerBarActive = true;
+// 手の表示演出（各プレイヤーの手を周囲に配置）
+function createPlayerHands() {
+    handMeshes.forEach(m => scene.remove(m));
+    handMeshes = [];
 
-        if (state.powerInterval) clearInterval(state.powerInterval);
-        state.powerInterval = setInterval(() => {
-            if (!state.powerBarActive) return;
-            state.powerValue += state.powerSpeed * state.powerDir;
-            if (state.powerValue >= 100) { state.powerValue = 100; state.powerDir = -1; }
-            if (state.powerValue <= 0) { state.powerValue = 0; state.powerDir = 1; }
-
-            document.getElementById('bar-pointer').style.left = `${state.powerValue}%`;
-        }, 20);
-    }
-
-    function stopPowerBar() {
-        if (!state.powerBarActive) return;
-        state.powerBarActive = false;
-        clearInterval(state.powerInterval);
-        if (state.powerCallback) state.powerCallback(Math.round(state.powerValue));
-    }
-
-    function postPowerPhase() {
-        closePopup();
+    STATE.players.forEach((p, idx) => {
+        const angle = (idx / STATE.players.length) * Math.PI * 2;
+        const radius = 8;
         
-        // ランダムアイテム獲得判定
-        if (Math.random() < 0.6) {
-            triggerItemRoulette();
-        } else {
-            checkGameOver();
+        const group = new THREE.Group();
+        
+        // 腕・手の簡易表現
+        const skinMat = new THREE.MeshStandardMaterial({ color: p.handSkin.skin });
+        const armGeo = new THREE.CylinderGeometry(0.4, 0.5, 3, 16);
+        const arm = new THREE.Mesh(armGeo, skinMat);
+        arm.rotation.x = Math.PI / 3;
+        group.add(arm);
+
+        group.position.set(Math.sin(angle) * radius, 3, Math.cos(angle) * radius);
+        group.lookAt(0, 3, 0);
+
+        scene.add(group);
+        handMeshes.push(group);
+    });
+}
+
+// 3Dアニメーションループ
+function animate() {
+    requestAnimationFrame(animate);
+
+    // 物理演算更新（ゲーム実行中のみ）
+    if (STATE.mode === 'GAME') {
+        world.step(1 / 60);
+        for (let i = 0; i < blocks.length; i++) {
+            blocks[i].mesh.position.copy(blocks[i].body.position);
+            blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
+        }
+        checkCollapse();
+    }
+
+    // ゲージ進行処理
+    if (STATE.gaugeRunning) {
+        STATE.gaugePos += STATE.gaugeSpeed * STATE.gaugeDir;
+        if (STATE.gaugePos >= 100 || STATE.gaugePos <= 0) {
+            STATE.gaugeDir *= -1;
+        }
+        document.getElementById('gauge-pointer').style.left = STATE.gaugePos + '%';
+        document.getElementById('gauge-val-display').innerText = Math.floor(STATE.gaugePos);
+    }
+
+    renderer.render(scene, camera);
+}
+
+/* ==========================================================================
+   3. UI / メニュー / イベントフロー (Game Flow & Handlers)
+   ========================================================================== */
+
+function showMenu() {
+    document.getElementById('title-screen').classList.add('hidden');
+    document.getElementById('menu-screen').classList.remove('hidden');
+    init3D();
+}
+
+function selectHost() {
+    STATE.isHost = true;
+    document.getElementById('menu-main').classList.add('hidden');
+    document.getElementById('menu-host').classList.remove('hidden');
+}
+
+function selectGuest() {
+    STATE.isHost = false;
+    document.getElementById('menu-main').classList.add('hidden');
+    document.getElementById('menu-name').classList.remove('hidden');
+}
+
+function setPlayerCount(num) {
+    STATE.playerCount = num;
+    document.getElementById('menu-host').classList.add('hidden');
+    document.getElementById('menu-name').classList.remove('hidden');
+}
+
+function submitName() {
+    const input = document.getElementById('player-name-input').value.trim();
+    const regex = /^[ぁ-んー0-9]+$/;
+    
+    if (!input || input.length > 6 || (!regex.test(input) && input !== "debug")) {
+        alert("ひらがな・数字のみ、6文字以内で入力してください。");
+        return;
+    }
+
+    const myHand = HAND_SKINS[Math.floor(Math.random() * HAND_SKINS.length)];
+    STATE.players.push({
+        name: input,
+        hp: 100,
+        maxHp: 100,
+        score: 0,
+        items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
+        handSkin: myHand
+    });
+
+    document.getElementById('menu-name').classList.add('hidden');
+
+    if (STATE.isHost) {
+        document.getElementById('menu-lobby').classList.remove('hidden');
+        const roomId = Math.floor(1000 + Math.random() * 9000);
+        document.getElementById('room-id-display').innerText = `ID: ${roomId}`;
+        
+        // ダミープレイヤーの補完（人数分）
+        for (let i = 2; i <= STATE.playerCount; i++) {
+            STATE.players.push({
+                name: `つわもの${i}`,
+                hp: 100, maxHp: 100, score: 0,
+                items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
+                handSkin: HAND_SKINS[(i-1) % HAND_SKINS.length]
+            });
+        }
+        updateLobbyUI();
+    } else {
+        document.getElementById('menu-guest-id').classList.remove('hidden');
+    }
+}
+
+function updateLobbyUI() {
+    const list = document.getElementById('joined-players-list');
+    list.innerHTML = "<b>参加プレイヤー:</b><br>" + STATE.players.map(p => `・${p.name}`).join('<br>');
+    if (STATE.players.length >= STATE.playerCount) {
+        document.getElementById('btn-start-game').classList.remove('hidden');
+    }
+}
+
+function connectGuest() {
+    const id = document.getElementById('guest-id-input').value;
+    if (id.length === 4) {
+        // 接続成功演出
+        document.getElementById('menu-guest-id').innerHTML = "<h3>接続成功！</h3><p>ホストの開始を待っています...</p>";
+        setTimeout(() => {
+            // ダミーでゲーム開始
+            STATE.players.unshift({ name: "ホスト", hp: 100, maxHp: 100, score: 0, items:{}, handSkin: HAND_SKINS[0] });
+            startOrderRoulette();
+        }, 1500);
+    } else {
+        alert("4桁のIDを入力してください");
+    }
+}
+
+// 順番決めルーレット
+function startOrderRoulette() {
+    document.getElementById('menu-screen').classList.add('hidden');
+    
+    let speed = 50;
+    let idx = 0;
+    const overlay = document.getElementById('popup-overlay');
+    overlay.classList.remove('hidden');
+    
+    document.getElementById('popup-title').innerText = "順番決めルーレット";
+    
+    const timer = setInterval(() => {
+        document.getElementById('popup-body').innerText = `▶ ${STATE.players[idx % STATE.players.length].name} ◀`;
+        idx++;
+    }, speed);
+
+    document.getElementById('popup-btn').innerText = "ストップ！";
+    document.getElementById('popup-btn').onclick = () => {
+        clearInterval(timer);
+        // 画面シェイク演出
+        document.getElementById('app-container').classList.add('shake');
+        setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 500);
+
+        // シャッフル
+        STATE.players.sort(() => Math.random() - 0.5);
+        
+        document.getElementById('popup-title').innerText = "順番決定！";
+        document.getElementById('popup-body').innerHTML = STATE.players.map((p, i) => `${i + 1}番目: ${p.name}`).join('<br>');
+        document.getElementById('popup-btn').innerText = "全員確認してゲーム開始";
+        document.getElementById('popup-btn').onclick = () => {
+            overlay.classList.add('hidden');
+            startGame();
+        };
+    };
+}
+
+/* ==========================================================================
+   4. ゲームメインループ ＆ ターン制御 (Game Loop & Turn Controller)
+   ========================================================================== */
+
+function startGame() {
+    STATE.mode = 'GAME';
+    buildJengaTower();
+    createPlayerHands();
+    updateGUI();
+    startTurn();
+}
+
+function startTurn() {
+    STATE.phase = 'SELECT';
+    STATE.timer = 20;
+    document.getElementById('huge-count').classList.add('hidden');
+    
+    // アイテム効果の初期化チェック等
+    updateGUI();
+
+    if (STATE.timerInterval) clearInterval(STATE.timerInterval);
+    STATE.timerInterval = setInterval(() => {
+        STATE.timer--;
+        document.getElementById('gui-timer').innerText = STATE.timer;
+        
+        if (STATE.timer <= 5 && STATE.timer > 0) {
+            const hc = document.getElementById('huge-count');
+            hc.classList.remove('hidden');
+            hc.innerText = STATE.timer;
+        }
+
+        if (STATE.timer <= 0) {
+            clearInterval(STATE.timerInterval);
+            nextTurn(); // タイムアウトで自動終了
+        }
+    }, 1000);
+}
+
+function nextTurn() {
+    clearInterval(STATE.timerInterval);
+    document.getElementById('spit-overlay').classList.add('hidden'); // くしゃみリセット
+    STATE.turnIndex = (STATE.turnIndex + 1) % STATE.players.length;
+    startTurn();
+}
+
+function updateGUI() {
+    // プレイヤーリスト
+    const container = document.getElementById('gui-player-list');
+    container.innerHTML = '';
+    STATE.players.forEach((p, idx) => {
+        const card = document.createElement('div');
+        card.className = `player-card ${idx === STATE.turnIndex ? 'active' : ''}`;
+        card.innerHTML = `
+            <div><b>${p.name}</b></div>
+            <div>獲:${p.score}本</div>
+            <div class="hp-bar" style="width:${(p.hp/p.maxHp)*100}%"></div>
+        `;
+        container.appendChild(card);
+    });
+
+    // アイテム数
+    const curP = STATE.players[STATE.turnIndex];
+    ['ojama', 'sneeze', 'renzoku', 'pass', 'ganriki', 'rob'].forEach(item => {
+        const cnt = curP.items[item] || 0;
+        document.getElementById(`count-${item}`).innerText = cnt;
+        const btn = document.getElementById(`item-${item}`);
+        if (cnt > 0) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+}
+
+/* ==========================================================================
+   5. 操作ボタン機能（全体、面、近接、段数）
+   ========================================================================== */
+
+function setViewMode(mode) {
+    if (mode === 'all') {
+        camera.position.set(0, 12, 25);
+        camera.lookAt(0, 6, 0);
+    } else if (mode === 'zoom') {
+        // 5段分アップ
+        const targetY = (STATE.currentTier - 1) * 3 + 2;
+        camera.position.set(0, targetY, 8);
+        camera.lookAt(0, targetY, 0);
+    }
+}
+
+function cycleFace() {
+    STATE.currentFace = (STATE.currentFace % 4) + 1;
+    document.getElementById('face-num').innerText = STATE.currentFace;
+    const angle = (STATE.currentFace - 1) * (Math.PI / 2);
+    const r = 25;
+    camera.position.set(Math.sin(angle) * r, 12, Math.cos(angle) * r);
+    camera.lookAt(0, 6, 0);
+}
+
+function cycleTier() {
+    STATE.currentTier = (STATE.currentTier % 4) + 1;
+    document.getElementById('tier-num').innerText = STATE.currentTier;
+    setViewMode('zoom');
+}
+
+/* ==========================================================================
+   6. 抜き取り・角度選択・パワー＆ガードバトル
+   ========================================================================== */
+
+// 簡易タップ判定（Raycastによるブロック選択）
+window.addEventListener('pointerdown', (e) => {
+    if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    if (e.clientY > rect.bottom) return; // GUIエリア無視
+
+    const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh));
+
+    if (intersects.length > 0) {
+        const targetMesh = intersects[0].object;
+        STATE.selectedBlock = blocks.find(b => b.mesh === targetMesh);
+        if (STATE.selectedBlock) {
+            startAngleSelection();
         }
     }
+});
 
-    /* --- ⑤⑥ アイテムルーレット & 効果定義 --- */
-    function triggerItemRoulette() {
-        const itemKeys = ['ojama', 'sneeze', 'double', 'pass', 'vision', 'steal'];
-        const itemNames = ['お邪魔', 'くしゃみ', '連続', 'パス', '眼力', '強奪'];
-        let idx = 0;
+function startAngleSelection() {
+    STATE.phase = 'ANGLE_H';
+    // 横・縦の角度決定ダイアログ
+    showPopup("角度選択 (1/2)", "横のストップ位置を決めます。中心の赤い〇を狙ってください！", "決定", () => {
+        STATE.phase = 'ANGLE_V';
+        showPopup("角度選択 (2/2)", "縦のストップ位置を決めます。中心の赤い〇を狙ってください！", "セットオン (SET ON)", () => {
+            triggerSetOnAnimation();
+        });
+    });
+}
 
-        showPopup(`
-            <h3>アイテム獲得ルーレット！</h3>
-            <div id="item-roulette-text" class="shake" style="font-size:24px; margin:20px; color:#2ecc71;">${itemNames[0]}</div>
-            <button class="btn" onclick="stopItemRoulette()">GET!</button>
-        `);
+function triggerSetOnAnimation() {
+    // 全体回転演出
+    let rot = 0;
+    const timer = setInterval(() => {
+        rot += 0.2;
+        camera.position.x = Math.sin(rot) * 20;
+        camera.position.z = Math.cos(rot) * 20;
+        camera.lookAt(0, 6, 0);
+    }, 30);
 
-        state.itemInterval = setInterval(() => {
-            idx = (idx + 1) % itemKeys.length;
-            document.getElementById('item-roulette-text').innerText = itemNames[idx];
-            state.selectedItemKey = itemKeys[idx];
-            state.selectedItemName = itemNames[idx];
-        }, 100);
+    setTimeout(() => {
+        clearInterval(timer);
+        openPowerGauge('POWER');
+    }, 1500);
+}
+
+function openPowerGauge(type) {
+    const overlay = document.getElementById('power-gauge-overlay');
+    overlay.classList.remove('hidden');
+    
+    STATE.gaugeRunning = true;
+    STATE.gaugePos = 0;
+    STATE.gaugeSpeed = Math.random() * 3 + 2; // スピードランダム
+
+    const curP = STATE.players[STATE.turnIndex];
+    if (type === 'POWER') {
+        document.getElementById('gauge-owner-title').innerText = `${curP.name} の攻撃パワー！`;
+    } else {
+        const targetP = STATE.players[(STATE.turnIndex + 1) % STATE.players.length];
+        document.getElementById('gauge-owner-title').innerText = `${targetP.name} のガードポイント！`;
+    }
+}
+
+function stopGauge() {
+    if (!STATE.gaugeRunning) return;
+    STATE.gaugeRunning = false;
+    
+    const val = Math.floor(STATE.gaugePos);
+    document.getElementById('power-gauge-overlay').classList.add('hidden');
+
+    if (STATE.phase === 'ANGLE_V' || STATE.phase === 'POWER') {
+        STATE.powerScore = val;
+        // 相手のガードへ
+        STATE.phase = 'GUARD';
+        showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "相手ガード判定へ", () => {
+            openPowerGauge('GUARD');
+        });
+    } else if (STATE.phase === 'GUARD') {
+        STATE.guardScore = val;
+        resolveBattleResult();
+    }
+}
+
+function resolveBattleResult() {
+    const diff = STATE.powerScore - STATE.guardScore;
+    const turnP = STATE.players[STATE.turnIndex];
+    const targetP = STATE.players[(STATE.turnIndex + 1) % STATE.players.length];
+
+    let msg = `<div class="power-impact-text">${STATE.powerScore} POWER</div>`;
+    msg += `<div class="guard-impact-text">VS ${STATE.guardScore} GUARD</div><br>`;
+
+    if (diff <= 0) {
+        msg += `<b style="color:#00ff00;">ガード成功！ダメージなし</b>`;
+    } else {
+        const damage = Math.ceil(diff / 10);
+        targetP.hp = Math.max(0, targetP.hp - damage);
+        msg += `<b style="color:#ff3333;">${targetP.name} に ${damage} のダメージ！</b>`;
+        
+        // 被弾シェイク
+        document.getElementById('app-container').classList.add('shake');
+        setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 400);
     }
 
-    function stopItemRoulette() {
-        clearInterval(state.itemInterval);
-        const curPlayer = state.players[state.currentTurn];
-        if (curPlayer.items[state.selectedItemKey] < 5) {
-            curPlayer.items[state.selectedItemKey]++;
+    // クリティカル・抜き取り物理演出
+    if (STATE.powerScore === 100) {
+        msg += `<br><b style="color:#ffff00;">★ CRITICAL BREAK ★</b>`;
+    }
+
+    // 物理的に力（Impulse）を加える
+    if (STATE.selectedBlock) {
+        const pushForce = (STATE.powerScore / 50) * 5;
+        STATE.selectedBlock.body.applyImpulse(
+            new CANNON.Vec3(0, 0, -pushForce),
+            STATE.selectedBlock.body.position
+        );
+        turnP.score++;
+        rollItemReward(turnP);
+    }
+
+    showPopup("結果発表", msg, "ターン終了", () => {
+        if (targetP.hp <= 0) {
+            alert(`${targetP.name} 脱落！`);
         }
-        showPopup(`
-            <p>${state.selectedItemName} を手に入れた！</p>
-            <button class="btn" onclick="closePopup(); checkGameOver();">OK</button>
-        `);
+        nextTurn();
+    });
+}
+
+/* ==========================================================================
+   7. アイテムシステム＆効果発動
+   ========================================================================== */
+
+function rollItemReward(player) {
+    if (Math.random() < 0.5) return; // 50%で獲得
+
+    const itemList = ['ojama', 'sneeze', 'renzoku', 'pass', 'ganriki', 'rob'];
+    const reward = itemList[Math.floor(Math.random() * itemList.length)];
+    
+    if ((player.items[reward] || 0) < 5) {
+        player.items[reward] = (player.items[reward] || 0) + 1;
+        setTimeout(() => {
+            showPopup("アイテムGET！", `ルーレットの結果...<br><b>【${reward.toUpperCase()}】</b> を獲得！`, "OK");
+        }, 1000);
     }
+}
 
-    function useItem(type) {
-        const curPlayer = state.players[state.currentTurn];
-        if (curPlayer.items[type] <= 0) return;
+function useItem(type) {
+    const p = STATE.players[STATE.turnIndex];
+    if (!p.items[type] || p.items[type] <= 0) return;
 
-        showPopup(`
-            <h3>アイテム使用: ${type}</h3>
-            <p>使用しますか？（タイマー停止中）</p>
-            <button class="btn" onclick="executeItem('${type}')">OK</button>
-            <button class="btn" onclick="closePopup()">キャンセル</button>
-        `);
-    }
+    p.items[type]--;
+    updateGUI();
 
-    function executeItem(type) {
-        const curPlayer = state.players[state.currentTurn];
-        curPlayer.items[type]--;
-        closePopup();
-
-        if (type === 'pass') {
-            alert('パスを使用しました。ターンをスキップします。');
-            endTurn();
-        } else if (type === 'vision') {
-            alert('一番負荷の少ない棒が輝き出しました！');
-            state.blocks.forEach(b => b.glowing = false);
-            const target = state.blocks.find(b => !b.removed);
-            if (target) target.glowing = true;
-        } else if (type === 'sneeze') {
-            alert('くしゃみ発生！ 画面が汚れます！');
-            document.getElementById('sneeze-overlay').classList.remove('hidden');
-        } else {
-            alert(`${type} の効果が発動しました！`);
+    if (type === 'pass') {
+        showPopup("アイテム発動", "【パス】を使用しました。ターンをスキップします。", "OK", () => nextTurn());
+    } else if (type === 'sneeze') {
+        document.getElementById('spit-overlay').classList.remove('hidden');
+        showPopup("アイテム発動", "【くしゃみ】発動！画面が汚れた！", "OK");
+    } else if (type === 'ganriki') {
+        // 最も負荷がかかっていないブロック（Y座標が高く動きがないもの等）を光らせる
+        const target = blocks[blocks.length - 1];
+        if (target) {
+            target.mesh.material.forEach(m => m.color.setHex(0x00ffff));
         }
-        updateGUI();
+        showPopup("アイテム発動", "【眼力】発動！安全なブロックが青く輝いた！", "OK");
+    } else if (type === 'rob') {
+        const targetP = STATE.players[(STATE.turnIndex + 1) % STATE.players.length];
+        targetP.hp = Math.max(0, targetP.hp - 10);
+        p.hp += 10;
+        showPopup("アイテム発動", `【強奪】発動！ ${targetP.name} から体力を奪い取った！`, "OK");
+    } else {
+        showPopup("アイテム発動", `【${type.toUpperCase()}】を発動しました！`, "OK");
     }
+}
 
-    /* --- 勝敗判定・リザルト --- */
-    function checkGameOver() {
-        const remainingBlocks = state.blocks.filter(b => !b.removed).length;
-        const deadPlayer = state.players.find(p => p.hp <= 0);
+/* ==========================================================================
+   8. 倒壊判定・勝敗・リスタート
+   ========================================================================== */
 
-        if (remainingBlocks <= 5 || deadPlayer) {
-            // 倒壊/終了
-            state.players.forEach(p => p.score = p.blocks + p.hp);
-            state.players.sort((a, b) => b.score - a.score);
-
-            const rankHtml = state.players.map((p, i) => `
-                ${i + 1}位: ${i === 0 ? '👑 ' : ''}${p.name} (スコア: ${p.score})
-            `).join('<br>');
-
-            showPopup(`
-                <h2>GAME OVER</h2>
-                <div style="margin:15px 0;">${rankHtml}</div>
-                <h1 style="color:#f1c40f;">${state.players[0].name} WIN!</h1>
-                <button class="btn" onclick="restartGame()">再戦</button>
-                <button class="btn" onclick="location.reload()">タイトルへ</button>
-            `);
-        } else {
-            endTurn();
+function checkCollapse() {
+    // 高さが崩れたブロックがあるかチェック
+    for (let b of blocks) {
+        if (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 6 || Math.abs(b.body.position.z) > 6) {
+            triggerGameOver();
+            break;
         }
     }
+}
 
-    function restartGame() {
-        closePopup();
-        initJengaBlocks();
-        state.players.forEach(p => { p.hp = 100; p.blocks = 0; });
-        state.currentTurn = 0;
-        startGame();
-    }
+function triggerGameOver() {
+    STATE.mode = 'OVER';
+    clearInterval(STATE.timerInterval);
 
-    /* --- 汎用ポップアップヘルパー --- */
-    function showPopup(html) {
-        document.getElementById('popup-content').innerHTML = html;
-        document.getElementById('popup-dialog').classList.remove('hidden');
-    }
+    // スコア計算 (獲得数 + 残りHP)
+    const rankings = [...STATE.players].sort((a, b) => (b.score + b.hp) - (a.score + a.hp));
+    const winner = rankings[0];
 
-    function closePopup() {
-        document.getElementById('popup-dialog').classList.add('hidden');
-    }
+    let html = `<h2 style="color:#ffcc00;">👑 ${winner.name} WIN! 👑</h2><br>`;
+    html += rankings.map((p, i) => `${i + 1}位: 👑 ${p.name} (獲得:${p.score} / HP:${p.hp})`).join('<br>');
+
+    showPopup("倒壊！ゲーム終了", html, "リトライ / 終了", () => {
+        location.reload();
+    });
+}
+
+// 汎用ポップアップヘルパー
+function showPopup(title, body, btnText = "OK", callback = null) {
+    const overlay = document.getElementById('popup-overlay');
+    document.getElementById('popup-title').innerText = title;
+    document.getElementById('popup-body').innerHTML = body;
+    const btn = document.getElementById('popup-btn');
+    btn.innerText = btnText;
+    btn.onclick = () => {
+        overlay.classList.add('hidden');
+        if (callback) callback();
+    };
+    overlay.classList.remove('hidden');
+}
+
+function closePopup() {
+    document.getElementById('popup-overlay').classList.add('hidden');
+}
 </script>
 </body>
 </html>
