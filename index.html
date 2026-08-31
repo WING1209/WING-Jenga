@@ -322,7 +322,6 @@
             border-radius: 17px;
             overflow: hidden;
         }
-        /* 縦軸用（ANGLE_V）の縦型ゲージスタイル */
         .gauge-bar-bg.vertical-gauge {
             width: 40px;
             height: 180px;
@@ -440,7 +439,7 @@
     </div>
 
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer4<br><span style="font-size:18px; color:#fff;">Online</span></div>
+        <div class="title-logo">ジェンガアタックVer3<br><span style="font-size:18px; color:#fff;">Online</span></div>
         <div class="blink-text">TAP TO START</div>
     </div>
 
@@ -737,6 +736,10 @@ function rotateCam(dir) {
 
 let lastTapTime = 0;
 let touchStartY = 0;
+let touchStartX = 0;
+let touchStartTime = 0;
+let isLongPress = false;
+let longPressTimer = null;
 
 function initTouchControls() {
     const container = document.getElementById('canvas-container');
@@ -744,10 +747,20 @@ function initTouchControls() {
     container.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
             touchStartY = e.touches[0].clientY;
+            touchStartX = e.touches[0].clientX;
+            touchStartTime = Date.now();
+            isLongPress = false;
+
+            // 長押し検知（400ms以上動かずに押されていたら長押しとみなしてジェンガ選択無効）
+            longPressTimer = setTimeout(() => {
+                isLongPress = true;
+            }, 400);
             
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTapTime;
             if (tapLength < 300 && tapLength > 0) {
+                if (longPressTimer) clearTimeout(longPressTimer);
+                isLongPress = true;
                 STATE.isZoomed = !STATE.isZoomed;
                 updateCameraPosition();
             }
@@ -756,21 +769,117 @@ function initTouchControls() {
     }, {passive: true});
 
     container.addEventListener('touchmove', (e) => {
-        if (STATE.isZoomed && e.touches.length === 1) {
+        if (e.touches.length === 1) {
             const touchY = e.touches[0].clientY;
-            const diff = touchStartY - touchY;
-            if (Math.abs(diff) > 20) {
-                if (diff > 0) {
-                    STATE.camHeight = Math.min(18, STATE.camHeight + 0.3);
-                } else {
-                    STATE.camHeight = Math.max(1, STATE.camHeight - 0.3);
+            const touchX = e.touches[0].clientX;
+            
+            // 少しでも動いたら長押し・タップ選択を無効化してスライド操作に専念
+            if (Math.abs(touchX - touchStartX) > 10 || Math.abs(touchY - touchStartY) > 10) {
+                if (longPressTimer) clearTimeout(longPressTimer);
+                isLongPress = true;
+            }
+
+            if (STATE.isZoomed) {
+                const diff = touchStartY - touchY;
+                if (Math.abs(diff) > 20) {
+                    if (diff > 0) {
+                        STATE.camHeight = Math.min(18, STATE.camHeight + 0.3);
+                    } else {
+                        STATE.camHeight = Math.max(1, STATE.camHeight - 0.3);
+                    }
+                    touchStartY = touchY;
+                    updateCameraPosition();
                 }
-                touchStartY = touchY;
-                updateCameraPosition();
             }
         }
     }, {passive: true});
+
+    container.addEventListener('touchend', (e) => {
+        if (longPressTimer) clearTimeout(longPressTimer);
+        
+        // タップ判定：長押しでなく、短時間かつ移動がほとんどない場合のみジェンガ選択処理を行う
+        if (!isLongPress && (Date.now() - touchStartTime < 400)) {
+            // タップ位置を元にレイキャスト判定
+            const touch = e.changedTouches[0];
+            handleBlockSelection(touch.clientX, touch.clientY);
+        }
+    }, {passive: true});
 }
+
+// PCでのクリック用サポート
+window.addEventListener('pointerdown', (e) => {
+    touchStartX = e.clientX;
+    touchStartY = e.clientY;
+    touchStartTime = Date.now();
+    isLongPress = false;
+    longPressTimer = setTimeout(() => {
+        isLongPress = true;
+    }, 400);
+});
+
+window.addEventListener('pointermove', (e) => {
+    if (Math.abs(e.clientX - touchStartX) > 10 || Math.abs(e.clientY - touchStartY) > 10) {
+        if (longPressTimer) clearTimeout(longPressTimer);
+        isLongPress = true;
+    }
+});
+
+window.addEventListener('pointerup', (e) => {
+    if (longPressTimer) clearTimeout(longPressTimer);
+    if (isLongPress) return;
+    if (Date.now() - touchStartTime > 400) return;
+    
+    // スマホのtouchendと重複しないようマウス操作のみまたはタッチ非対応環境用
+    if (e.pointerType === 'mouse') {
+        handleBlockSelection(e.clientX, e.clientY);
+    }
+});
+
+function handleBlockSelection(clientX, clientY) {
+    if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
+    if (STATE.turnIndex !== STATE.myIndex) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    if (clientY < rect.top || clientY > rect.bottom || clientX < rect.left || clientX > rect.right) return;
+
+    const mouse = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh), true);
+
+    if (intersects.length > 0) {
+        const hit = intersects[0];
+        const targetMesh = hit.object;
+        const blockObj = blocks.find(b => b.mesh === targetMesh || b.mesh.children.includes(targetMesh));
+
+        if (blockObj) {
+            STATE.selectedBlock = blockObj;
+            showJengaConfirmPopup(blockObj);
+        }
+    }
+}
+
+function showJengaConfirmPopup(blockObj) {
+    let html = `<div style="margin: 10px 0; font-size:14px;">このジェンガブロックを選択しますか？</div>`;
+    html += `<div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">`;
+    html += `<button class="menu-btn" style="background:#44aa44; flex:1; padding:10px;" onclick="onJengaConfirm(true)">OK</button>`;
+    html += `<button class="menu-btn" style="background:#aa4444; flex:1; padding:10px;" onclick="onJengaConfirm(false)">キャンセル</button>`;
+    html += `</div>`;
+    showPopup("ジェンガ選択確認", html, "", null);
+}
+
+window.onJengaConfirm = function(isOk) {
+    closePopup();
+    if (isOk) {
+        selectTargetPlayer();
+    } else {
+        STATE.selectedBlock = null;
+    }
+};
 
 function animate() {
     requestAnimationFrame(animate);
@@ -1051,10 +1160,13 @@ function startPolling() {
                 } else if (STATE.mode === 'ORDER_CONFIRM') {
                     showOrderScreen();
                 } else if (STATE.mode === 'GAME') {
-                    // オンラインでの防御フェーズ（GUARD）移行検知
+                    // 防衛フェーズ（GUARD）移行検知
                     if (room.phase === 'GUARD' && document.getElementById('power-gauge-overlay').classList.contains('hidden') && !STATE.gaugeRunning) {
                         if (STATE.myIndex === STATE.targetPlayerIndex) {
                             openPowerGauge('GUARD');
+                        } else {
+                            // 攻撃側にはプリーズウエイトを表示
+                            showPleaseWaitPopup("相手の防御操作を待っています...");
                         }
                     }
                 }
@@ -1243,50 +1355,45 @@ function updateCentralStatus() {
     `;
 }
 
-window.addEventListener('pointerdown', (e) => {
-    if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
-    if (STATE.turnIndex !== STATE.myIndex) return;
-
-    const rect = renderer.domElement.getBoundingClientRect();
-    if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) return;
-
-    const mouse = new THREE.Vector2(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1
-    );
-
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh), true);
-
-    if (intersects.length > 0) {
-        const hit = intersects[0];
-        const targetMesh = hit.object;
-        const blockObj = blocks.find(b => b.mesh === targetMesh || b.mesh.children.includes(targetMesh));
-
-        if (blockObj) {
-            STATE.selectedBlock = blockObj;
-            selectTargetPlayer();
-        }
-    }
-});
+// 攻撃対象選択用の一時変数
+let tempSelectedTargetIndex = -1;
 
 function selectTargetPlayer() {
     STATE.phase = 'TARGET_SELECT';
-    let html = `<div class="target-select-list">`;
+    tempSelectedTargetIndex = -1;
+    renderTargetSelectPopup();
+}
+
+function renderTargetSelectPopup() {
+    let html = `<div class="target-select-list" style="display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:200px; overflow-y:auto;">`;
     STATE.players.forEach((p, i) => {
-        if (i !== STATE.turnIndex) {
-            html += `<button class="menu-btn" onclick="confirmTarget(${i})">${p.name} (HP: ${p.hp})</button>`;
+        // 自分自身（自分のインデックス）は攻撃対象に選べないよう除外
+        if (i !== STATE.myIndex) {
+            const isSelected = (tempSelectedTargetIndex === i);
+            html += `<div style="background:${isSelected ? '#554422' : '#333'}; border:2px solid ${isSelected ? '#ffcc00' : '#555'}; padding:10px; border-radius:6px; cursor:pointer; text-align:left;" onclick="window.tempSelectTarget(${i})">
+                <b>${p.name}</b> (HP: ${p.hp}) ${isSelected ? ' ◀ 選択中' : ''}
+            </div>`;
         }
     });
     html += `</div>`;
-    showPopup("攻撃対象選択", "攻撃するプレイヤーを選んでください：<br>" + html, "", null);
+    html += `<button class="menu-btn" style="background:#ff3333; margin-top:15px; width:100%;" onclick="confirmTargetFinal()">決定</button>`;
+    
+    showPopup("攻撃対象選択", "攻撃するプレイヤーをタップして選択してください：<br>" + html, "", null);
 }
 
-window.confirmTarget = async function(targetIdx) {
-    STATE.targetPlayerIndex = targetIdx;
+window.tempSelectTarget = function(idx) {
+    tempSelectedTargetIndex = idx;
+    renderTargetSelectPopup();
+};
+
+window.confirmTargetFinal = async function() {
+    if (tempSelectedTargetIndex === -1) {
+        alert("攻撃対象を選択してください！");
+        return;
+    }
+    STATE.targetPlayerIndex = tempSelectedTargetIndex;
     closePopup();
-    
+
     await updateRoomData({
         pin: STATE.roomPin,
         players: STATE.players,
@@ -1308,22 +1415,25 @@ function startAngleSelectionV() {
     openPowerGauge('ANGLE_V');
 }
 
+function showPleaseWaitPopup(text) {
+    let html = `<div class="blink-text" style="font-size:18px; color:#ffcc00; margin:15px 0;">⏳ ${text} ⏳</div>`;
+    showPopup("プレーズウエイト", html, "", null);
+}
+
 function openPowerGauge(type) {
     const overlay = document.getElementById('power-gauge-overlay');
     const bg = document.querySelector('.gauge-bar-bg');
     
-    // 縦軸（ANGLE_V）の場合は縦型ゲージ（上下移動）にする
     if (type === 'ANGLE_V') {
         bg.classList.add('vertical-gauge');
     } else {
         bg.classList.remove('vertical-gauge');
     }
 
-    // 防御フェーズ（GUARD）の役割分離チェック：防御プレイヤー以外はゲージを表示しない
+    // 防御フェーズ（GUARD）の役割分離チェック：防御プレイヤー以外にはゲージを出さず待機表示にする
     if (type === 'GUARD') {
         if (STATE.myIndex !== STATE.targetPlayerIndex) {
-            const targetP = STATE.players[STATE.targetPlayerIndex];
-            showPopup("防御フェーズ待機中", `防御プレイヤー（${targetP.name}）の防御操作を待っています...`, "", null);
+            showPleaseWaitPopup("相手の防御操作を待っています...");
             return;
         }
     }
@@ -1356,7 +1466,6 @@ async function stopGauge() {
         alert("あなたではなく、防御プレイヤーの操作番です！");
         return;
     }
-    // 攻撃フェーズ関連の操作はターンプレイヤーのみ許可
     if (STATE.phase !== 'GUARD' && STATE.turnIndex !== STATE.myIndex) {
         alert("あなたのターンではありません！");
         return;
@@ -1376,7 +1485,6 @@ async function stopGauge() {
         STATE.powerScore = val;
         STATE.phase = 'GUARD';
         
-        // パワー確定後、ガードフェーズへ移行しサーバーに保存（これにより防御プレイヤー側の操作が有効化される）
         await updateRoomData({
             pin: STATE.roomPin,
             players: STATE.players,
@@ -1386,9 +1494,8 @@ async function stopGauge() {
             powerScore: STATE.powerScore
         });
 
-        showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "相手ガード判定へ", () => {
-            openPowerGauge('GUARD');
-        });
+        showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "", null);
+        showPleaseWaitPopup("相手の防御操作を待っています...");
     } else if (STATE.phase === 'GUARD') {
         STATE.guardScore = val;
         STATE.phase = 'RESULT';
@@ -1410,12 +1517,10 @@ async function stopGauge() {
 function showTrajectoryPreview() {
     closePopup();
     
-    // 軌道確認時は全体ビューに強制変更
     STATE.isZoomed = false;
     STATE.camAngle = 0;
     updateCameraPosition();
 
-    // 軌道確認時は名前や体力値などの不要なUIを非表示にする
     document.getElementById('gui-container').classList.add('hidden');
     document.getElementById('central-battle-status').classList.add('hidden');
     document.getElementById('turn-banner').classList.add('hidden');
@@ -1433,7 +1538,6 @@ function showTrajectoryPreview() {
         );
 
         const distance = startPos.distanceTo(endPos);
-        // 太くて見やすい立体的な赤色シリンダー軌道に変更
         const cylinderGeo = new THREE.CylinderGeometry(0.2, 0.2, distance, 16);
         const cylinderMat = new THREE.MeshStandardMaterial({ 
             color: 0xff0000, 
@@ -1453,16 +1557,24 @@ function showTrajectoryPreview() {
     }
 
     let elapsedRot = 0;
+    let stabProgress = 0;
     const rotInterval = setInterval(() => {
         elapsedRot += 0.05;
         STATE.camAngle += 0.05;
         updateCameraPosition();
+
+        // 起動で打ち抜く素振りアニメーション（棒が前後に伸縮する演出）
+        if (trajectoryLine) {
+            stabProgress += 0.25;
+            const scaleFactor = 1 + Math.sin(stabProgress) * 0.25;
+            trajectoryLine.scale.set(1, scaleFactor, 1);
+        }
+
         if (elapsedRot >= Math.PI * 2) {
             clearInterval(rotInterval);
             STATE.camAngle = 0;
             updateCameraPosition();
             
-            // 非表示にしていたUIを復元
             document.getElementById('gui-container').classList.remove('hidden');
             document.getElementById('central-battle-status').classList.remove('hidden');
             document.querySelectorAll('.cam-arrow').forEach(el => el.classList.remove('hidden'));
