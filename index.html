@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ジェンガアタック オンライン</title>
+    <title>ジェンガアタック</title>
     <!-- Three.js & Cannon.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
@@ -204,18 +204,20 @@
         .hidden { display: none !important; }
 
         .title-logo {
-            font-size: 36px;
+            font-size: 38px;
             font-weight: 900;
             color: #ff3333;
-            text-shadow: 0 0 10px #ff0000, 3px 3px 0px #fff;
-            margin-bottom: 40px;
+            text-shadow: 0 0 12px #ff0000, 3px 3px 0px #fff;
+            margin-bottom: 50px;
             text-align: center;
             letter-spacing: 2px;
         }
         .blink-text {
             animation: blink 1.2s infinite;
-            font-size: 18px;
+            font-size: 22px;
+            font-weight: bold;
             color: #ffff00;
+            letter-spacing: 2px;
         }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
@@ -235,15 +237,33 @@
         .menu-btn {
             background: #444;
             color: #fff;
-            padding: 14px;
+            padding: 12px;
             border: 1px solid #777;
             border-radius: 6px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             cursor: pointer;
         }
         .menu-btn:active { background: #666; }
         
+        .num-select-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .num-btn {
+            background: #334455;
+            color: #fff;
+            border: 1px solid #6688aa;
+            padding: 12px 0;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .num-btn:active { background: #557799; }
+
         input[type="text"] {
             width: 100%;
             padding: 12px;
@@ -441,19 +461,23 @@
         </div>
     </div>
 
+    <!-- ① タイトル画面 -->
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer1<br><span style="font-size:18px; color:#fff;">Online</span></div>
-        <div class="blink-text">TAP TO START</div>
+        <div class="title-logo">ジェンガアタックVer1.0</div>
+        <div class="blink-text">スタート</div>
     </div>
 
+    <!-- ② メニュー画面群 -->
     <div id="menu-screen" class="overlay hidden" style="cursor: default;">
+        <!-- 初期項目: 1.ホスト / 2.ゲスト / 3.終了 -->
         <div class="menu-box" id="menu-main">
-            <h3>メインメニュー</h3>
-            <button class="menu-btn" onclick="selectHost()">１．ホスト</button>
-            <button class="menu-btn" onclick="selectGuest()">２．ゲスト</button>
-            <button class="menu-btn" onclick="location.reload()">３．終了</button>
+            <h3>メニュー</h3>
+            <button class="menu-btn" onclick="selectHost()">１，ホスト</button>
+            <button class="menu-btn" onclick="selectGuest()">２，ゲスト</button>
+            <button class="menu-btn" onclick="location.reload()">３，終了</button>
         </div>
 
+        <!-- プレイヤーネーム入力 -->
         <div class="menu-box hidden" id="menu-name">
             <h3>プレイヤーネーム</h3>
             <p style="font-size:11px; color:#aaa;">(ひらがな・数字 6文字まで)</p>
@@ -461,6 +485,20 @@
             <button class="menu-btn" onclick="submitName()">決定</button>
         </div>
 
+        <!-- 【追加】何人で遊ぶかを決定（ホスト用 1〜5人） -->
+        <div class="menu-box hidden" id="menu-player-count">
+            <h3>対戦人数選択</h3>
+            <p style="font-size:11px; color:#aaa;">何人で遊ぶかを指定してください (最大5人)</p>
+            <div class="num-select-grid">
+                <button class="num-btn" onclick="setPlayerCount(1)">１人</button>
+                <button class="num-btn" onclick="setPlayerCount(2)">２人</button>
+                <button class="num-btn" onclick="setPlayerCount(3)">３人</button>
+                <button class="num-btn" onclick="setPlayerCount(4)">４人</button>
+                <button class="num-btn" onclick="setPlayerCount(5)">５人</button>
+            </div>
+        </div>
+
+        <!-- ゲスト用: 4桁ルームID入力 -->
         <div class="menu-box hidden" id="menu-guest-id">
             <h3>4桁ルームID入力</h3>
             <p style="font-size:10px; color:#aaa;">ホストから共有された4桁の数字を入力してください</p>
@@ -468,6 +506,7 @@
             <button class="menu-btn" onclick="connectGuest()">接続</button>
         </div>
 
+        <!-- オンラインロビー -->
         <div class="menu-box hidden" id="menu-lobby">
             <h3>接続待機中...</h3>
             <div style="font-size:18px; font-weight:bold; color:#ffcc00; margin:5px 0;" id="room-id-display">4桁ID: 読み込み中...</div>
@@ -505,6 +544,7 @@ const MASTER_BOARD_BIN_ID = "6a954f24f5f4af5e29572441";
 const STATE = {
     mode: 'TITLE',
     isHost: false,
+    maxPlayers: 2, // デフォルト人数（ホストが1〜5人で指定）
     myIndex: 0,
     players: [],
     turnIndex: 0,
@@ -747,7 +787,6 @@ let longPressTimer = null;
 function initTouchControls() {
     const container = document.getElementById('canvas-container');
 
-    // 画面誤スクロール防止（【②】対応）
     window.addEventListener('touchmove', (e) => {
         if (e.target.tagName !== 'INPUT') {
             e.preventDefault();
@@ -925,18 +964,21 @@ function animate() {
     renderer.render(scene, camera);
 }
 
+// ① タイトルタップでメニューへ遷移
 function showMenu() {
     document.getElementById('title-screen').classList.add('hidden');
     document.getElementById('menu-screen').classList.remove('hidden');
     init3D();
 }
 
+// ② 1. ホスト選択
 function selectHost() {
     STATE.isHost = true;
     document.getElementById('menu-main').classList.add('hidden');
     document.getElementById('menu-name').classList.remove('hidden');
 }
 
+// ② 2. ゲスト選択
 function selectGuest() {
     STATE.isHost = false;
     document.getElementById('menu-main').classList.add('hidden');
@@ -956,10 +998,19 @@ function submitName() {
     document.getElementById('menu-name').classList.add('hidden');
 
     if (STATE.isHost) {
-        createRoomWithPin();
+        // ホストの場合は「何人で遊ぶか（1〜5人）」の選択画面を表示
+        document.getElementById('menu-player-count').classList.remove('hidden');
     } else {
+        // ゲストの場合は共通4桁ID入力画面を表示
         document.getElementById('menu-guest-id').classList.remove('hidden');
     }
+}
+
+// 人数選択（1〜5人）処理
+function setPlayerCount(num) {
+    STATE.maxPlayers = num;
+    document.getElementById('menu-player-count').classList.add('hidden');
+    createRoomWithPin();
 }
 
 async function createRoomWithPin() {
@@ -976,9 +1027,9 @@ async function createRoomWithPin() {
     STATE.myIndex = 0;
 
     try {
-        // 【①】JSONBinのデータ構造を完全正規化
         const roomData = {
             pin: pin,
+            maxPlayers: STATE.maxPlayers,
             players: STATE.players,
             phase: 'LOBBY',
             turnIndex: 0,
@@ -1085,6 +1136,12 @@ async function connectGuest() {
         STATE.myRoomBinId = targetBinId;
         STATE.mode = 'LOBBY';
         STATE.players = foundRoomData.players || [];
+        STATE.maxPlayers = foundRoomData.maxPlayers || 5;
+
+        if (STATE.players.length >= STATE.maxPlayers && !STATE.players.some(p => p.name === STATE.myName)) {
+            alert(`この部屋は満員です (最大${STATE.maxPlayers}人)`);
+            return;
+        }
 
         if (!STATE.players.some(p => p.name === STATE.myName)) {
             STATE.players.push({
@@ -1097,6 +1154,7 @@ async function connectGuest() {
             
             await updateRoomData({
                 pin: STATE.roomPin,
+                maxPlayers: STATE.maxPlayers,
                 players: STATE.players,
                 phase: foundRoomData.phase || 'LOBBY',
                 turnIndex: foundRoomData.turnIndex || 0,
@@ -1137,7 +1195,6 @@ async function updateRoomData(roomData) {
     }
 }
 
-// 【④】ポーリングタイマーの重複起動を確実に防止
 function startPolling() {
     if (pollingTimer) {
         clearInterval(pollingTimer);
@@ -1157,6 +1214,7 @@ function startPolling() {
 
             if (room && room.players) {
                 STATE.players = room.players;
+                if (room.maxPlayers) STATE.maxPlayers = room.maxPlayers;
                 if (room.phase) STATE.phase = room.phase;
                 if (room.targetPlayerIndex !== undefined) STATE.targetPlayerIndex = room.targetPlayerIndex;
                 if (room.powerScore !== undefined) STATE.powerScore = room.powerScore;
@@ -1171,7 +1229,6 @@ function startPolling() {
                 } else if (STATE.mode === 'ORDER_CONFIRM') {
                     showOrderScreen();
                 } else if (STATE.mode === 'GAME') {
-                    // 【③】防衛フェーズ（GUARD）移行時に誤ったポップアップを残さない制御
                     if (room.phase === 'GUARD' && document.getElementById('power-gauge-overlay').classList.contains('hidden') && !STATE.gaugeRunning) {
                         if (STATE.myIndex === STATE.targetPlayerIndex) {
                             closePopup();
@@ -1196,12 +1253,12 @@ function startPolling() {
 
 function updateLobbyUI() {
     const list = document.getElementById('joined-players-list');
-    list.innerHTML = `<b>参加者一覧 (${STATE.players.length}人):</b><br>` + STATE.players.map(p => `・${p.name}`).join('<br>');
+    list.innerHTML = `<b>参加者一覧 (${STATE.players.length} / ${STATE.maxPlayers}人):</b><br>` + STATE.players.map(p => `・${p.name}`).join('<br>');
     
     const waitingMsg = document.getElementById('lobby-waiting-msg');
     const startBtn = document.getElementById('btn-start-roulette');
 
-    if (STATE.players.length >= 2) {
+    if (STATE.players.length >= STATE.maxPlayers || (STATE.maxPlayers === 1 && STATE.players.length === 1)) {
         waitingMsg.innerText = "プレイヤーが揃いました！";
         if (STATE.isHost) {
             startBtn.classList.remove('hidden');
@@ -1209,8 +1266,13 @@ function updateLobbyUI() {
             waitingMsg.innerText += " ホストがルーレットを開始するのを待っています...";
         }
     } else {
-        waitingMsg.innerText = `接続待ち... (現在 ${STATE.players.length} 人)`;
-        startBtn.classList.add('hidden');
+        waitingMsg.innerText = `接続待ち... (現在 ${STATE.players.length} / ${STATE.maxPlayers} 人)`;
+        if (STATE.isHost && STATE.players.length >= 1) {
+            // ホストは定員未満でも途中で開始可能
+            startBtn.classList.remove('hidden');
+        } else {
+            startBtn.classList.add('hidden');
+        }
     }
 }
 
@@ -1219,6 +1281,7 @@ async function startOrderRoulette() {
     
     await updateRoomData({
         pin: STATE.roomPin,
+        maxPlayers: STATE.maxPlayers,
         players: STATE.players,
         phase: 'SHOW_ORDER',
         turnIndex: 0,
@@ -1262,6 +1325,7 @@ function showOrderScreen() {
 async function executeGameStart() {
     await updateRoomData({
         pin: STATE.roomPin,
+        maxPlayers: STATE.maxPlayers,
         players: STATE.players,
         phase: 'GAME',
         turnIndex: 0,
@@ -1369,6 +1433,13 @@ function updateCentralStatus() {
 let tempSelectedTargetIndex = -1;
 
 function selectTargetPlayer() {
+    if (STATE.players.length === 1) {
+        // 1人プレイの場合は自分を選択
+        STATE.targetPlayerIndex = 0;
+        startAngleSelectionH();
+        return;
+    }
+
     STATE.phase = 'TARGET_SELECT';
     tempSelectedTargetIndex = -1;
     renderTargetSelectPopup();
@@ -1405,6 +1476,7 @@ window.confirmTargetFinal = async function() {
 
     await updateRoomData({
         pin: STATE.roomPin,
+        maxPlayers: STATE.maxPlayers,
         players: STATE.players,
         phase: 'ANGLE_H',
         turnIndex: STATE.turnIndex,
@@ -1446,7 +1518,7 @@ function openPowerGauge(type) {
         }
     }
 
-    closePopup(); // 【③】既存ポップアップを削除してからオーバーレイ表示
+    closePopup();
     overlay.classList.remove('hidden');
     
     STATE.gaugeRunning = true;
@@ -1495,6 +1567,7 @@ async function stopGauge() {
         
         await updateRoomData({
             pin: STATE.roomPin,
+            maxPlayers: STATE.maxPlayers,
             players: STATE.players,
             phase: 'GUARD',
             turnIndex: STATE.turnIndex,
@@ -1514,6 +1587,7 @@ async function stopGauge() {
         
         await updateRoomData({
             pin: STATE.roomPin,
+            maxPlayers: STATE.maxPlayers,
             players: STATE.players,
             phase: 'RESULT',
             turnIndex: STATE.turnIndex,
@@ -1600,7 +1674,7 @@ function showTrajectoryPreview() {
 }
 
 function resolveBattleResult() {
-    closePopup(); // 【③】以前の待機ポップアップを確実にクリア
+    closePopup();
     const diff = STATE.powerScore - STATE.guardScore;
     const turnP = STATE.players[STATE.turnIndex];
     const targetP = STATE.players[STATE.targetPlayerIndex];
