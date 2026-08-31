@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ジェンガアタック</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&display=swap');
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: 'DotGothic16', sans-serif;
+            color: #fff;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 500px;
+            margin: 0 auto;
+            background: #2b2b2b;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* スクリーン共通 */
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            background: rgba(20, 20, 20, 0.95);
+        }
+
+        .hidden { display: none !important; }
+
+        /* ① タイトル画面 */
+        .pixel-title {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 28px;
+            color: #f39c12;
+            text-shadow: 4px 4px 0px #e67e22, 8px 8px 0px #d35400, 12px 12px 0px #000;
+            text-align: center;
+            line-height: 1.4;
+            margin-bottom: 50px;
+            padding: 10px;
+            background: #8e44ad;
+            border: 4px solid #f1c40f;
+            box-shadow: inset -4px -4px 0px #4a235a;
+        }
+
+        .blink {
+            animation: blinker 1.2s linear infinite;
+            font-size: 18px;
+            color: #2ecc71;
+            margin-top: 40px;
+        }
+
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+
+        /* ボタン共通 */
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            border-bottom: 4px solid #2980b9;
+            padding: 12px 24px;
+            font-size: 18px;
+            font-family: 'DotGothic16', sans-serif;
+            margin: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            min-width: 160px;
+            text-align: center;
+        }
+        .btn:active {
+            transform: translateY(2px);
+            border-bottom: 2px solid #2980b9;
+        }
+
+        /* 入力フォーム */
+        input[type="text"] {
+            font-size: 20px;
+            padding: 8px;
+            text-align: center;
+            border-radius: 6px;
+            border: 2px solid #3498db;
+            margin: 10px 0;
+            width: 80%;
+            font-family: 'DotGothic16', sans-serif;
+        }
+
+        /* ポップアップ・ダイアログ */
+        .popup {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: #333;
+            border: 4px solid #f39c12;
+            padding: 20px;
+            border-radius: 12px;
+            z-index: 100;
+            width: 85%;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        /* Shake 演出 */
+        .shake {
+            animation: shakeAnim 0.3s ease-in-out infinite;
+        }
+        @keyframes shakeAnim {
+            0% { transform: translate(0, 0); }
+            20% { transform: translate(-10px, 5px); }
+            40% { transform: translate(10px, -5px); }
+            60% { transform: translate(-5px, 10px); }
+            80% { transform: translate(5px, -5px); }
+            100% { transform: translate(0, 0); }
+        }
+
+        /* ③④ ゲーム画面レイアウト (7:3 GUI) */
+        #game-view {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        #canvas-container {
+            width: 70%;
+            height: 100%;
+            position: relative;
+            background: #111;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #gui-panel {
+            width: 30%;
+            height: 100%;
+            background: #222;
+            border-left: 2px solid #444;
+            display: flex;
+            flex-direction: column;
+            padding: 5px;
+            font-size: 12px;
+            z-index: 5;
+        }
+
+        .gui-section {
+            background: #333;
+            margin-bottom: 6px;
+            padding: 4px;
+            border-radius: 4px;
+            border: 1px solid #555;
+        }
+
+        .player-info {
+            margin-bottom: 4px;
+            padding-bottom: 2px;
+            border-bottom: 1px dashed #555;
+        }
+        .player-info.active {
+            color: #f1c40f;
+            font-weight: bold;
+        }
+
+        .timer-display {
+            font-size: 18px;
+            color: #e74c3c;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .item-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2px;
+        }
+        .item-btn {
+            background: #444;
+            color: #aaa;
+            border: 1px solid #666;
+            font-size: 10px;
+            padding: 4px 2px;
+            border-radius: 3px;
+            text-align: center;
+        }
+        .item-btn.active {
+            background: #e67e22;
+            color: #fff;
+            border-color: #f39c12;
+            box-shadow: 0 0 5px #f39c12;
+            cursor: pointer;
+        }
+
+        .control-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            margin-top: auto;
+        }
+        .ctrl-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 5px;
+            font-size: 11px;
+            border-radius: 3px;
+        }
+
+        /* 画面中央の大カウントダウン */
+        #big-timer {
+            position: absolute;
+            top: 40%; left: 35%;
+            transform: translate(-50%, -50%);
+            font-size: 80px;
+            color: #e74c3c;
+            font-weight: bold;
+            text-shadow: 0 0 10px #000;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* パワーバー表示 */
+        #power-bar-container {
+            position: absolute;
+            bottom: 20px;
+            left: 5%;
+            width: 60%;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #fff;
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 60;
+        }
+        .bar-bg {
+            width: 100%;
+            height: 25px;
+            background: linear-gradient(to right, blue, cyan, green, yellow, red);
+            position: relative;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .bar-pointer {
+            position: absolute;
+            top: 0; width: 4px; height: 100%;
+            background: #fff;
+            box-shadow: 0 0 5px #000;
+        }
+        .bar-ticks {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            margin-top: 2px;
+        }
+
+        /* つば汚れ演出（くしゃみアイテム用） */
+        #sneeze-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 80;
+            background: radial-gradient(circle at 30% 40%, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 20%),
+                        radial-gradient(circle at 70% 60%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 25%),
+                        radial-gradient(circle at 50% 20%, rgba(200,255,200,0.6) 0%, rgba(200,255,200,0) 15%);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- ① タイトル画面 -->
+    <div id="screen-title" class="screen">
+        <div class="pixel-title">ジェンガ<br>アタック</div>
+        <div class="blink">タップしてスタート</div>
+    </div>
+
+    <!-- ② メニュー & ホスト/ゲスト接続設定 -->
+    <div id="screen-menu" class="screen hidden">
+        <h2>メインメニュー</h2>
+        <button class="btn" onclick="selectMenu(1)">1. ホスト</button>
+        <button class="btn" onclick="selectMenu(2)">2. ゲスト</button>
+        <button class="btn" onclick="selectMenu(3)">3. 終了</button>
+    </div>
+
+    <!-- ホスト設定画面 -->
+    <div id="screen-host-config" class="screen hidden">
+        <h3>プレイ人数選択</h3>
+        <div style="display:flex; gap:5px; margin:15px 0;">
+            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(1)">1</button>
+            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(2)">2</button>
+            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(3)">3</button>
+            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(4)">4</button>
+            <button class="btn" style="min-width:40px;" onclick="setPlayerCount(5)">5</button>
+        </div>
+        <h3>プレイヤーネーム (6文字以内)</h3>
+        <input type="text" id="host-name" maxlength="6" placeholder="ひらがな・数字">
+        <button class="btn" onclick="confirmHostConfig()">決定</button>
+    </div>
+
+    <!-- ホスト待機画面 -->
+    <div id="screen-host-wait" class="screen hidden">
+        <p>接続ID: <span id="display-room-id" style="font-size:28px; color:#f1c40f;">----</span></p>
+        <div class="blink">接続待機中...</div>
+        <div id="host-player-list" style="margin: 20px 0; text-align:left;"></div>
+        <button id="btn-start-game" class="btn hidden" onclick="startRoulette()">ゲーム開始</button>
+    </div>
+
+    <!-- ゲスト設定画面 -->
+    <div id="screen-guest-config" class="screen hidden">
+        <h3>プレイヤーネーム (6文字以内)</h3>
+        <input type="text" id="guest-name" maxlength="6" placeholder="ひらがな・数字">
+        <button class="btn" onclick="confirmGuestName()">決定</button>
+    </div>
+
+    <!-- ゲストID入力画面 -->
+    <div id="screen-guest-id" class="screen hidden">
+        <h3>4桁の接続IDを入力</h3>
+        <input type="text" id="input-room-id" maxlength="4" placeholder="1234">
+        <button class="btn" onclick="connectAsGuest()">接続</button>
+    </div>
+
+    <!-- ③④ ゲーム画面 -->
+    <div id="screen-game" class="screen hidden" style="padding:0; background:#000;">
+        <div id="game-view">
+            <!-- 70% ゲーム表示エリア -->
+            <div id="canvas-container">
+                <canvas id="jengaCanvas"></canvas>
+                <div id="big-timer" class="hidden">5</div>
+                
+                <!-- 威力/ガード パワーバー -->
+                <div id="power-bar-container" class="hidden">
+                    <div id="power-title" style="text-align:center; font-size:12px; margin-bottom:2px;">威力決定！</div>
+                    <div class="bar-bg">
+                        <div id="bar-pointer" class="bar-pointer"></div>
+                    </div>
+                    <div class="bar-ticks">
+                        <span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span>
+                    </div>
+                    <button class="btn" style="width:100%; margin:5px 0 0 0; padding:4px;" onclick="stopPowerBar()">STOP</button>
+                </div>
+
+                <!-- くしゃみ汚れ用オーバーレイ -->
+                <div id="sneeze-overlay" class="hidden"></div>
+            </div>
+
+            <!-- 30% GUIパネル -->
+            <div id="gui-panel">
+                <div class="gui-section">
+                    <div style="font-weight:bold; border-bottom:1px solid #777;">PLAYERS</div>
+                    <div id="gui-player-list"></div>
+                </div>
+
+                <div class="gui-section" style="text-align:center;">
+                    <div>TIME</div>
+                    <div id="gui-timer" class="timer-display">20</div>
+                </div>
+
+                <div class="gui-section">
+                    <div style="font-size:10px; margin-bottom:2px;">ITEMS</div>
+                    <div class="item-grid">
+                        <div id="item-ojama" class="item-btn" onclick="useItem('ojama')">お邪魔<br><span id="cnt-ojama">0</span></div>
+                        <div id="item-sneeze" class="item-btn" onclick="useItem('sneeze')">くしゃみ<br><span id="cnt-sneeze">0</span></div>
+                        <div id="item-double" class="item-btn" onclick="useItem('double')">連続<br><span id="cnt-double">0</span></div>
+                        <div id="item-pass" class="item-btn" onclick="useItem('pass')">パス<br><span id="cnt-pass">0</span></div>
+                        <div id="item-vision" class="item-btn" onclick="useItem('vision')">眼力<br><span id="cnt-vision">0</span></div>
+                        <div id="item-steal" class="item-btn" onclick="useItem('steal')">強奪<br><span id="cnt-steal">0</span></div>
+                    </div>
+                </div>
+
+                <div class="control-grid">
+                    <button class="ctrl-btn" onclick="setCameraView('all')">全体</button>
+                    <button class="ctrl-btn" onclick="rotateFacing()">面(1-4)</button>
+                    <button class="ctrl-btn" onclick="setCameraView('close')">近接</button>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:2px;">
+                        <button class="ctrl-btn" onclick="setSection(1)">段1-5</button>
+                        <button class="ctrl-btn" onclick="setSection(2)">段6-10</button>
+                        <button class="ctrl-btn" onclick="setSection(3)">段11-15</button>
+                        <button class="ctrl-btn" onclick="setSection(4)">段16-20</button>
+                    </div>
+                    <button class="ctrl-btn" style="background:#e74c3c; margin-top:5px;" onclick="endTurn()">ターン終了</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ポップアップダイアログ表示用 -->
+    <div id="popup-dialog" class="popup hidden">
+        <div id="popup-content"></div>
+    </div>
+</div>
+
+<script>
+    /* --- グローバルゲーム状態マネージャー --- */
+    const state = {
+        screen: 'title',
+        isHost: false,
+        maxPlayers: 1,
+        players: [], // { name, hp, blocks, items: {} }
+        roomId: '',
+        myIndex: 0,
+        currentTurn: 0,
+        turnTimer: 20,
+        timerInterval: null,
+        
+        // カメラ・表示設定
+        facingFace: 1, // 1:正面, 2:右, 3:奥, 4:左
+        viewMode: 'all', // all, close
+        selectedSection: 1, // 1~4
+        
+        // ジェンガデータ (20段 x 3本)
+        blocks: [],
+        
+        // パワー選択状態
+        powerBarActive: false,
+        powerValue: 0,
+        powerDir: 1,
+        powerSpeed: 2,
+        powerCallback: null,
+
+        // アイテム状態
+        activeEffects: {
+            ojama: null, // { target, type }
+            sneeze: false,
+            double: false
+        }
+    };
+
+    // 初期化
+    window.onload = () => {
+        setupEventListeners();
+        initJengaBlocks();
+    };
+
+    function setupEventListeners() {
+        document.getElementById('screen-title').addEventListener('click', () => {
+            showScreen('screen-menu');
+        });
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    /* --- ② メニュー & 接続フロー --- */
+    function selectMenu(option) {
+        if (option === 1) {
+            state.isHost = true;
+            showScreen('screen-host-config');
+        } else if (option === 2) {
+            state.isHost = false;
+            showScreen('screen-guest-config');
+        } else if (option === 3) {
+            showScreen('screen-title');
+        }
+    }
+
+    function setPlayerCount(num) {
+        state.maxPlayers = num;
+    }
+
+    function validateName(name) {
+        const regex = /^[ぁ-んー0-9]{1,6}$/;
+        return regex.test(name);
+    }
+
+    function confirmHostConfig() {
+        const name = document.getElementById('host-name').value.trim();
+        if (!validateName(name)) {
+            alert('名前はひらがな・数字のみで6文字以内にしてください');
+            return;
+        }
+        state.players = [{ name: name, hp: 100, blocks: 0, items: {ojama:0, sneeze:0, double:0, pass:0, vision:0, steal:0} }];
+        state.roomId = Math.floor(1000 + Math.random() * 9000).toString();
+        document.getElementById('display-room-id').innerText = state.roomId;
+        
+        updateHostWaitList();
+        showScreen('screen-host-wait');
+
+        // NPCプレイヤーの自動補完ロジック (デモ・オフライン兼用)
+        simulateConnections();
+    }
+
+    function simulateConnections() {
+        const dummyNames = ['たろう', 'はなこ', 'じろう', 'さくら', 'けんと'];
+        let count = 1;
+        const interval = setInterval(() => {
+            if (count < state.maxPlayers) {
+                state.players.push({
+                    name: dummyNames[count - 1],
+                    hp: 100,
+                    blocks: 0,
+                    items: {ojama:1, sneeze:1, double:0, pass:1, vision:0, steal:0}
+                });
+                count++;
+                updateHostWaitList();
+            } else {
+                clearInterval(interval);
+                document.getElementById('btn-start-game').classList.remove('hidden');
+            }
+        }, 1500);
+    }
+
+    function updateHostWaitList() {
+        const list = document.getElementById('host-player-list');
+        list.innerHTML = '<b>参加プレイヤー:</b><br>' + state.players.map(p => `・${p.name}`).join('<br>');
+    }
+
+    function confirmGuestName() {
+        const name = document.getElementById('guest-name').value.trim();
+        if (!validateName(name)) {
+            alert('名前はひらがな・数字のみで6文字以内にしてください');
+            return;
+        }
+        state.tempGuestName = name;
+        showScreen('screen-guest-id');
+    }
+
+    function connectAsGuest() {
+        const id = document.getElementById('input-room-id').value.trim();
+        if (id.length !== 4) {
+            alert('4桁の数字を入力してください');
+            return;
+        }
+        // デモ用擬似接続成功処理
+        showPopup('接続成功！ホストの開始を待っています...', () => {});
+        setTimeout(() => {
+            closePopup();
+            // ホスト設定で進行
+            state.players = [
+                { name: 'ほすと', hp: 100, blocks: 0, items: {ojama:0, sneeze:0, double:0, pass:0, vision:0, steal:0} },
+                { name: state.tempGuestName, hp: 100, blocks: 0, items: {ojama:0, sneeze:0, double:0, pass:0, vision:0, steal:0} }
+            ];
+            startRoulette();
+        }, 1500);
+    }
+
+    /* --- 順番決めルーレット --- */
+    function startRoulette() {
+        let textIndex = 0;
+        showPopup(`
+            <h3>順番決めルーレット</h3>
+            <div id="roulette-display" class="shake" style="font-size:24px; margin:20px; color:#f1c40f;">${state.players[0].name}</div>
+            <button class="btn" onclick="stopRoulette()">ストップ</button>
+        `);
+
+        state.rouletteInterval = setInterval(() => {
+            textIndex = (textIndex + 1) % state.players.length;
+            document.getElementById('roulette-display').innerText = state.players[textIndex].name;
+        }, 80);
+    }
+
+    function stopRoulette() {
+        clearInterval(state.rouletteInterval);
+        // シャッフル
+        state.players.sort(() => Math.random() - 0.5);
+
+        const listHtml = state.players.map((p, i) => `${i + 1}番目: ${p.name}`).join('<br>');
+        showPopup(`
+            <h3>順番決定！</h3>
+            <div style="margin:15px 0;">${listHtml}</div>
+            <button class="btn" onclick="startGame()">全員確認してゲーム開始</button>
+        `);
+    }
+
+    /* --- ③③ ゲームメインループ & GUI --- */
+    function startGame() {
+        closePopup();
+        showScreen('screen-game');
+        initCanvas();
+        updateGUI();
+        startTurn();
+    }
+
+    function startTurn() {
+        state.turnTimer = 20;
+        document.getElementById('gui-timer').innerText = state.turnTimer;
+        document.getElementById('big-timer').classList.add('hidden');
+
+        if (state.timerInterval) clearInterval(state.timerInterval);
+        
+        state.timerInterval = setInterval(() => {
+            state.turnTimer--;
+            document.getElementById('gui-timer').innerText = state.turnTimer;
+
+            if (state.turnTimer <= 5 && state.turnTimer > 0) {
+                const bt = document.getElementById('big-timer');
+                bt.classList.remove('hidden');
+                bt.innerText = state.turnTimer;
+            }
+
+            if (state.turnTimer <= 0) {
+                clearInterval(state.timerInterval);
+                alert(`${state.players[state.currentTurn].name}の時間切れ！`);
+                endTurn();
+            }
+        }, 1000);
+
+        updateGUI();
+    }
+
+    function endTurn() {
+        clearInterval(state.timerInterval);
+        state.currentTurn = (state.currentTurn + 1) % state.players.length;
+        
+        // くしゃみ効果解除判定等
+        document.getElementById('sneeze-overlay').classList.add('hidden');
+        
+        startTurn();
+    }
+
+    function updateGUI() {
+        const list = document.getElementById('gui-player-list');
+        list.innerHTML = state.players.map((p, i) => `
+            <div class="player-info ${i === state.currentTurn ? 'active' : ''}">
+                ${p.name} <br>
+                HP: ${p.hp}/100 | 獲得: ${p.blocks}本
+            </div>
+        `).join('');
+
+        // アイテムボタン表示更新
+        const curItems = state.players[state.currentTurn].items;
+        for (let key in curItems) {
+            const btn = document.getElementById(`item-${key}`);
+            const cnt = document.getElementById(`cnt-${key}`);
+            if (btn && cnt) {
+                cnt.innerText = curItems[key];
+                if (curItems[key] > 0) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+        }
+    }
+
+    /* --- ④ ジェンガ物理描画 Canvas (簡易2.5D表現) --- */
+    let canvas, ctx;
+
+    function initJengaBlocks() {
+        state.blocks = [];
+        for (let level = 0; level < 20; level++) {
+            const isEven = level % 2 === 0;
+            for (let i = 0; i < 3; i++) {
+                state.blocks.push({
+                    level: level + 1,
+                    index: i,
+                    removed: false,
+                    isEven: isEven,
+                    glowing: false
+                });
+            }
+        }
+    }
+
+    function initCanvas() {
+        canvas = document.getElementById('jengaCanvas');
+        ctx = canvas.getContext('2d');
+        resizeCanvas();
+        requestAnimationFrame(renderLoop);
+
+        canvas.addEventListener('click', handleCanvasClick);
+    }
+
+    function resizeCanvas() {
+        const container = document.getElementById('canvas-container');
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+    }
+
+    function renderLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 背景描画
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 手の演出描画 (ランダム風爪色・タトゥー表示)
+        drawHandOverlay();
+
+        // ジェンガタワー描画
+        const centerX = canvas.width / 2;
+        const startY = canvas.height - 80;
+        const blockHeight = 12;
+        const blockWidth = 70;
+
+        let visibleBlocks = state.blocks;
+        if (state.viewMode === 'close') {
+            const minLevel = (state.selectedSection - 1) * 5 + 1;
+            const maxLevel = state.selectedSection * 5;
+            visibleBlocks = state.blocks.filter(b => b.level >= minLevel && b.level <= maxLevel);
+        }
+
+        visibleBlocks.forEach(b => {
+            if (b.removed) return;
+
+            let y = startY - (b.level * (blockHeight + 2));
+            if (state.viewMode === 'close') {
+                y = canvas.height - 100 - ((b.level - (state.selectedSection - 1) * 5) * 30);
+            }
+
+            let x = centerX;
+            if (b.isEven) {
+                x += (b.index - 1) * (blockWidth / 3 + 2);
+            } else {
+                x += (b.index - 1) * 5; // 縦向き表現のオフセット
+            }
+
+            // ブロック本体
+            ctx.fillStyle = b.glowing ? '#f1c40f' : '#d2b48c';
+            ctx.fillRect(x - 20, y, 40, state.viewMode === 'close' ? 24 : blockHeight);
+            ctx.strokeStyle = '#8b4513';
+            ctx.strokeRect(x - 20, y, 40, state.viewMode === 'close' ? 24 : blockHeight);
+
+            // 刻印「良夫」
+            ctx.fillStyle = '#5c2c06';
+            ctx.font = '10px DotGothic16';
+            ctx.fillText('良夫', x - 10, y + (state.viewMode === 'close' ? 16 : 10));
+        });
+
+        requestAnimationFrame(renderLoop);
+    }
+
+    function drawHandOverlay() {
+        const curPlayer = state.players[state.currentTurn];
+        ctx.fillStyle = '#e0ac69'; // 肌の色
+        ctx.fillRect(10, canvas.height - 60, 50, 60); // 片手イメージ
+        
+        // 爪の色
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(15, canvas.height - 55, 8, 8);
+
+        // タトゥー（名前）
+        ctx.fillStyle = '#000';
+        ctx.font = '10px DotGothic16';
+        ctx.fillText(curPlayer.name, 12, canvas.height - 20);
+    }
+
+    /* --- ④ 操作 & ブロック抜き・パワー決定フロー --- */
+    function setCameraView(mode) {
+        state.viewMode = mode;
+    }
+
+    function rotateFacing() {
+        state.facingFace = (state.facingFace % 4) + 1;
+        alert(`面 ${state.facingFace} に回転しました`);
+    }
+
+    function setSection(sec) {
+        state.selectedSection = sec;
+        state.viewMode = 'close';
+    }
+
+    function handleCanvasClick(e) {
+        if (state.viewMode !== 'close') {
+            alert('近接画面にして抜きたい棒をタップしてください');
+            return;
+        }
+
+        // 簡易タップ判定（一番手前の対象ブロックを抜く）
+        const targetBlock = state.blocks.find(b => !b.removed && b.level >= (state.selectedSection - 1) * 5 + 1);
+        if (targetBlock) {
+            targetBlock.removed = true;
+            triggerPowerPhase();
+        }
+    }
+
+    function triggerPowerPhase() {
+        clearInterval(state.timerInterval); // 測定中タイマー停止
+        
+        // 1. 威力バー開始
+        document.getElementById('power-bar-container').classList.remove('hidden');
+        document.getElementById('power-title').innerText = `${state.players[state.currentTurn].name} のアタック威力！`;
+        startPowerBarAnimation((attackPower) => {
+            
+            // 2. ガードバー（相手プレイヤー選択／自動）
+            const defender = state.players[(state.currentTurn + 1) % state.players.length];
+            document.getElementById('power-title').innerText = `${defender.name} のガードポイント！`;
+            
+            startPowerBarAnimation((guardPower) => {
+                document.getElementById('power-bar-container').classList.add('hidden');
+                
+                // ダメージ計算
+                let diff = attackPower - guardPower;
+                let msg = `アタック: ${attackPower} POWER\nガード: ${guardPower} GUARD\n`;
+
+                if (attackPower === 100) {
+                    msg += "★クリティカル大爆発★\n";
+                    diff = 100;
+                }
+
+                if (diff <= 0) {
+                    msg += "ガード成功！ ダメージなし！";
+                } else {
+                    let damage = Math.floor(diff / 10);
+                    defender.hp = Math.max(0, defender.hp - damage);
+                    msg += `${defender.name} に ${damage} のダメージ！`;
+                    document.getElementById('game-container').classList.add('shake');
+                    setTimeout(() => document.getElementById('game-container').classList.remove('shake'), 400);
+                }
+
+                state.players[state.currentTurn].blocks++;
+
+                showPopup(`<h3>結果</h3><p>${msg.replace(/\n/g, '<br>')}</p><button class="btn" onclick="postPowerPhase()">次へ</button>`);
+            });
+        });
+    }
+
+    function startPowerBarAnimation(callback) {
+        state.powerValue = 0;
+        state.powerDir = 1;
+        state.powerSpeed = Math.random() * 3 + 2;
+        state.powerCallback = callback;
+        state.powerBarActive = true;
+
+        if (state.powerInterval) clearInterval(state.powerInterval);
+        state.powerInterval = setInterval(() => {
+            if (!state.powerBarActive) return;
+            state.powerValue += state.powerSpeed * state.powerDir;
+            if (state.powerValue >= 100) { state.powerValue = 100; state.powerDir = -1; }
+            if (state.powerValue <= 0) { state.powerValue = 0; state.powerDir = 1; }
+
+            document.getElementById('bar-pointer').style.left = `${state.powerValue}%`;
+        }, 20);
+    }
+
+    function stopPowerBar() {
+        if (!state.powerBarActive) return;
+        state.powerBarActive = false;
+        clearInterval(state.powerInterval);
+        if (state.powerCallback) state.powerCallback(Math.round(state.powerValue));
+    }
+
+    function postPowerPhase() {
+        closePopup();
+        
+        // ランダムアイテム獲得判定
+        if (Math.random() < 0.6) {
+            triggerItemRoulette();
+        } else {
+            checkGameOver();
+        }
+    }
+
+    /* --- ⑤⑥ アイテムルーレット & 効果定義 --- */
+    function triggerItemRoulette() {
+        const itemKeys = ['ojama', 'sneeze', 'double', 'pass', 'vision', 'steal'];
+        const itemNames = ['お邪魔', 'くしゃみ', '連続', 'パス', '眼力', '強奪'];
+        let idx = 0;
+
+        showPopup(`
+            <h3>アイテム獲得ルーレット！</h3>
+            <div id="item-roulette-text" class="shake" style="font-size:24px; margin:20px; color:#2ecc71;">${itemNames[0]}</div>
+            <button class="btn" onclick="stopItemRoulette()">GET!</button>
+        `);
+
+        state.itemInterval = setInterval(() => {
+            idx = (idx + 1) % itemKeys.length;
+            document.getElementById('item-roulette-text').innerText = itemNames[idx];
+            state.selectedItemKey = itemKeys[idx];
+            state.selectedItemName = itemNames[idx];
+        }, 100);
+    }
+
+    function stopItemRoulette() {
+        clearInterval(state.itemInterval);
+        const curPlayer = state.players[state.currentTurn];
+        if (curPlayer.items[state.selectedItemKey] < 5) {
+            curPlayer.items[state.selectedItemKey]++;
+        }
+        showPopup(`
+            <p>${state.selectedItemName} を手に入れた！</p>
+            <button class="btn" onclick="closePopup(); checkGameOver();">OK</button>
+        `);
+    }
+
+    function useItem(type) {
+        const curPlayer = state.players[state.currentTurn];
+        if (curPlayer.items[type] <= 0) return;
+
+        showPopup(`
+            <h3>アイテム使用: ${type}</h3>
+            <p>使用しますか？（タイマー停止中）</p>
+            <button class="btn" onclick="executeItem('${type}')">OK</button>
+            <button class="btn" onclick="closePopup()">キャンセル</button>
+        `);
+    }
+
+    function executeItem(type) {
+        const curPlayer = state.players[state.currentTurn];
+        curPlayer.items[type]--;
+        closePopup();
+
+        if (type === 'pass') {
+            alert('パスを使用しました。ターンをスキップします。');
+            endTurn();
+        } else if (type === 'vision') {
+            alert('一番負荷の少ない棒が輝き出しました！');
+            state.blocks.forEach(b => b.glowing = false);
+            const target = state.blocks.find(b => !b.removed);
+            if (target) target.glowing = true;
+        } else if (type === 'sneeze') {
+            alert('くしゃみ発生！ 画面が汚れます！');
+            document.getElementById('sneeze-overlay').classList.remove('hidden');
+        } else {
+            alert(`${type} の効果が発動しました！`);
+        }
+        updateGUI();
+    }
+
+    /* --- 勝敗判定・リザルト --- */
+    function checkGameOver() {
+        const remainingBlocks = state.blocks.filter(b => !b.removed).length;
+        const deadPlayer = state.players.find(p => p.hp <= 0);
+
+        if (remainingBlocks <= 5 || deadPlayer) {
+            // 倒壊/終了
+            state.players.forEach(p => p.score = p.blocks + p.hp);
+            state.players.sort((a, b) => b.score - a.score);
+
+            const rankHtml = state.players.map((p, i) => `
+                ${i + 1}位: ${i === 0 ? '👑 ' : ''}${p.name} (スコア: ${p.score})
+            `).join('<br>');
+
+            showPopup(`
+                <h2>GAME OVER</h2>
+                <div style="margin:15px 0;">${rankHtml}</div>
+                <h1 style="color:#f1c40f;">${state.players[0].name} WIN!</h1>
+                <button class="btn" onclick="restartGame()">再戦</button>
+                <button class="btn" onclick="location.reload()">タイトルへ</button>
+            `);
+        } else {
+            endTurn();
+        }
+    }
+
+    function restartGame() {
+        closePopup();
+        initJengaBlocks();
+        state.players.forEach(p => { p.hp = 100; p.blocks = 0; });
+        state.currentTurn = 0;
+        startGame();
+    }
+
+    /* --- 汎用ポップアップヘルパー --- */
+    function showPopup(html) {
+        document.getElementById('popup-content').innerHTML = html;
+        document.getElementById('popup-dialog').classList.remove('hidden');
+    }
+
+    function closePopup() {
+        document.getElementById('popup-dialog').classList.add('hidden');
+    }
+</script>
+</body>
+</html>
