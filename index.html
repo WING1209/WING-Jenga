@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ジェンガアタック</title>
     <!-- Three.js & Cannon.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -12,10 +12,10 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
+            -webkit-touch-callout: none;
             margin: 0;
             padding: 0;
             font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
-            touch-action: none;
         }
         body, html {
             width: 100%;
@@ -27,6 +27,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            touch-action: manipulation;
         }
 
         #app-container {
@@ -67,6 +68,7 @@
         #three-canvas {
             width: 100%;
             height: 100%;
+            display: block;
         }
 
         .cam-arrow {
@@ -187,12 +189,11 @@
             align-items: center;
             z-index: 100;
             padding: 20px;
-            cursor: pointer;
         }
         .popup-transparent-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.6);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -232,7 +233,6 @@
             flex-direction: column;
             gap: 12px;
             text-align: center;
-            cursor: default;
         }
         .menu-btn {
             background: #444;
@@ -243,6 +243,7 @@
             font-size: 15px;
             font-weight: bold;
             cursor: pointer;
+            touch-action: manipulation;
         }
         .menu-btn:active { background: #666; }
         
@@ -273,6 +274,8 @@
             border: 1px solid #666;
             background: #111;
             color: #fff;
+            user-select: text;
+            -webkit-user-select: text;
         }
 
         #huge-count {
@@ -381,13 +384,6 @@
             text-shadow: 0 0 10px #00ffff;
         }
 
-        .target-select-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 10px;
-        }
-
         #spit-overlay {
             position: absolute;
             top:0; left:0; width:100%; height:100%;
@@ -398,9 +394,7 @@
                         radial-gradient(circle at 50% 20%, rgba(220,255,0,0.3) 0%, transparent 15%);
         }
 
-        .shake {
-            animation: shake 0.3s infinite;
-        }
+        .shake { animation: shake 0.3s infinite; }
         @keyframes shake {
             0% { transform: translate(0, 0); }
             20% { transform: translate(-10px, 5px); }
@@ -410,9 +404,7 @@
             100% { transform: translate(0, 0); }
         }
 
-        .battle-flash {
-            animation: flashAnim 0.5s ease-in-out;
-        }
+        .battle-flash { animation: flashAnim 0.5s ease-in-out; }
         @keyframes flashAnim {
             0% { background-color: rgba(255,0,0,0); }
             50% { background-color: rgba(255,0,0,0.6); }
@@ -463,12 +455,12 @@
 
     <!-- タイトル画面 -->
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer99</div>
+        <div class="title-logo">ジェンガアタックVer4</div>
         <div class="blink-text">スタート</div>
     </div>
 
     <!-- メニュー画面 -->
-    <div id="menu-screen" class="overlay hidden" style="cursor: default;">
+    <div id="menu-screen" class="overlay hidden">
         <div class="menu-box" id="menu-main">
             <h3>メニュー</h3>
             <button class="menu-btn" onclick="selectHost()">１，ホスト</button>
@@ -593,6 +585,7 @@ function init3D() {
 
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -774,7 +767,7 @@ function rotateCam(dir) {
     updateCameraPosition();
 }
 
-// 修正①: iPhone・Android両対応のタッチ・ポインター操作
+/* --- タッチ/ポインター制御の強力化 (iOS/Android完全対応) --- */
 let lastTapTime = 0;
 let touchStartY = 0;
 let touchStartX = 0;
@@ -783,39 +776,61 @@ let touchStartTime = 0;
 function initTouchControls() {
     const container = document.getElementById('canvas-container');
 
-    container.addEventListener('pointerdown', (e) => {
-        touchStartX = e.clientX;
-        touchStartY = e.clientY;
+    const handleStart = (clientX, clientY) => {
+        touchStartX = clientX;
+        touchStartY = clientY;
         touchStartTime = Date.now();
-    });
+    };
 
-    container.addEventListener('pointermove', (e) => {
+    const handleMove = (clientY) => {
         if (!STATE.isZoomed) return;
-        const diffY = touchStartY - e.clientY;
-        if (Math.abs(diffY) > 10) {
+        const diffY = touchStartY - clientY;
+        if (Math.abs(diffY) > 5) {
             STATE.camHeight = Math.max(1, Math.min(18, STATE.camHeight + (diffY > 0 ? 0.3 : -0.3)));
-            touchStartY = e.clientY;
+            touchStartY = clientY;
             updateCameraPosition();
         }
-    });
+    };
 
-    container.addEventListener('pointerup', (e) => {
+    const handleEnd = (clientX, clientY) => {
         const elapsed = Date.now() - touchStartTime;
-        const dist = Math.hypot(e.clientX - touchStartX, e.clientY - touchStartY);
+        const dist = Math.hypot(clientX - touchStartX, clientY - touchStartY);
 
-        if (elapsed < 300 && dist < 10) {
+        if (elapsed < 350 && dist < 15) {
             const now = Date.now();
             if (now - lastTapTime < 300) {
-                // ダブルタップでズーム切替
                 STATE.isZoomed = !STATE.isZoomed;
                 updateCameraPosition();
             } else {
-                // シングルタップでブロック選択
-                handleBlockSelection(e.clientX, e.clientY);
+                handleBlockSelection(clientX, clientY);
             }
             lastTapTime = now;
         }
-    });
+    };
+
+    // Pointer Events API
+    container.addEventListener('pointerdown', (e) => handleStart(e.clientX, e.clientY));
+    container.addEventListener('pointermove', (e) => handleMove(e.clientY));
+    container.addEventListener('pointerup', (e) => handleEnd(e.clientX, e.clientY));
+
+    // Safari / iOS Touch fallback
+    container.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            handleStart(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1) {
+            handleMove(e.touches[0].clientY);
+        }
+    }, { passive: true });
+
+    container.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length === 1) {
+            handleEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        }
+    }, { passive: true });
 }
 
 function handleBlockSelection(clientX, clientY) {
@@ -832,15 +847,17 @@ function handleBlockSelection(clientX, clientY) {
 
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh), true);
+    
+    const targetMeshes = blocks.map(b => b.mesh);
+    const intersects = raycaster.intersectObjects(targetMeshes, true);
 
     if (intersects.length > 0) {
-        const hit = intersects[0];
-        let targetMesh = hit.object;
-        while (targetMesh.parent && targetMesh.parent !== scene) {
-            targetMesh = targetMesh.parent;
+        let hitObj = intersects[0].object;
+        while (hitObj.parent && hitObj.parent !== scene) {
+            if (targetMeshes.includes(hitObj)) break;
+            hitObj = hitObj.parent;
         }
-        const blockObj = blocks.find(b => b.mesh === targetMesh || b.mesh.children.includes(hit.object));
+        const blockObj = blocks.find(b => b.mesh === hitObj);
 
         if (blockObj) {
             STATE.selectedBlock = blockObj;
@@ -869,7 +886,6 @@ window.onJengaConfirm = function(isOk) {
     }
 };
 
-// 修正②: ゲージのアニメーションロジック強化
 function animate() {
     requestAnimationFrame(animate);
 
@@ -1153,7 +1169,6 @@ async function updateRoomData(updateObj) {
     }
 }
 
-// 修正⑤: リアルタイム同期（ポーリング）の強化
 function startPolling() {
     if (pollingTimer) {
         clearInterval(pollingTimer);
@@ -1194,7 +1209,6 @@ function startPolling() {
                 } else if (STATE.mode === 'ORDER_CONFIRM') {
                     showOrderScreen();
                 } else if (STATE.mode === 'GAME') {
-                    // フェーズ分岐同期
                     if (serverPhase !== processedPhase) {
                         processedPhase = serverPhase;
                         STATE.phase = serverPhase;
@@ -1496,7 +1510,6 @@ function showPleaseWaitPopup(text) {
     showPopup("プレーズウエイト", html, "", null);
 }
 
-// 修正③: ゲージオープン時に速度を低速・中速・高速からランダム選定
 function openPowerGauge(type) {
     const overlay = document.getElementById('power-gauge-overlay');
     const bg = document.querySelector('.gauge-bar-bg');
@@ -1510,7 +1523,6 @@ function openPowerGauge(type) {
     closePopup();
     overlay.classList.remove('hidden');
     
-    // ランダム速度設定（低速: 1.2 / 中速: 2.5 / 高速: 4.5）
     const speeds = [1.2, 2.5, 4.5];
     STATE.gaugeSpeed = speeds[Math.floor(Math.random() * speeds.length)];
     STATE.gaugePos = 0;
@@ -1664,7 +1676,6 @@ function showTrajectoryPreview() {
     }, 30);
 }
 
-// 修正④: RESULT処理とダメージ適用・物理インパルスの確実な動作
 function resolveBattleResult() {
     closePopup();
     const diff = STATE.powerScore - STATE.guardScore;
