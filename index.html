@@ -154,6 +154,7 @@
             border-radius: 6px;
             text-align: center;
             font-weight: bold;
+            cursor: pointer;
         }
         .item-btn.active {
             background: #ff9900;
@@ -173,6 +174,7 @@
             font-weight: bold;
         }
 
+        /* 共通オーバーレイ（非背景暗転版：必要に応じて背景透過調整） */
         .overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -183,6 +185,19 @@
             align-items: center;
             z-index: 100;
             padding: 20px;
+        }
+        /* ポップアップ用（背景を暗くしない半透明・操作可能なオーバーレイ） */
+        .popup-transparent-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 90;
+            padding: 20px;
+            pointer-events: auto;
         }
         .hidden { display: none !important; }
 
@@ -268,6 +283,26 @@
             box-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
         }
 
+        /* 画面中央に大きく表示するプレイヤー＆体力ハイライト表示 */
+        #central-battle-status {
+            position: absolute;
+            top: 15%; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            border: 2px solid #ff3333;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            z-index: 85;
+            text-align: center;
+            pointer-events: none;
+            box-shadow: 0 0 15px rgba(255, 51, 51, 0.6);
+            display: flex;
+            gap: 15px;
+        }
+
         #power-gauge-overlay {
             position: absolute;
             top: 40%; left: 50%;
@@ -278,7 +313,7 @@
             padding: 20px;
             border-radius: 10px;
             text-align: center;
-            z-index: 60;
+            z-index: 95;
         }
         .gauge-bar-bg {
             width: 100%;
@@ -338,6 +373,16 @@
             80% { transform: translate(5px, 10px); }
             100% { transform: translate(0, 0); }
         }
+
+        /* 派手なダメージインパクト用エフェクト演出 */
+        .battle-flash {
+            animation: flashAnim 0.5s ease-in-out;
+        }
+        @keyframes flashAnim {
+            0% { background-color: rgba(255,0,0,0); }
+            50% { background-color: rgba(255,0,0,0.6); }
+            100% { background-color: rgba(255,0,0,0); }
+        }
     </style>
 </head>
 <body>
@@ -357,6 +402,7 @@
         <div class="cam-arrow" id="cam-right" onclick="rotateCam(1)">›</div>
         <div id="huge-count" class="hidden">40</div>
         <div id="turn-banner" class="hidden">〇〇の番です</div>
+        <div id="central-battle-status" class="hidden"></div>
         <div id="spit-overlay" class="hidden"></div>
     </div>
 
@@ -381,7 +427,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタックVer3.2<br><span style="font-size:18px; color:#fff;">Online ()</span></div>
+        <div class="title-logo">ジェンガアタックVer3.3<br><span style="font-size:18px; color:#fff;">Online</span></div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -419,7 +465,8 @@
         </div>
     </div>
 
-    <div id="popup-overlay" class="overlay hidden">
+    <!-- ポップアップ（背景を暗くしない半透明表示仕様） -->
+    <div id="popup-overlay" class="popup-transparent-overlay hidden">
         <div class="menu-box" id="popup-content">
             <h3 id="popup-title">タイトル</h3>
             <div id="popup-body">本文</div>
@@ -464,6 +511,7 @@ const STATE = {
     guardScore: 0,
     phase: 'SELECT',
     physicsActive: false,
+    physicsTimer: 0,
     targetPlayerIndex: 0,
     angleHVal: 50,
     angleVVal: 50,
@@ -590,7 +638,7 @@ function buildJengaTower() {
 
             const mesh = new THREE.Mesh(geometry, materials);
 
-            // 黒縁取り（エッジ）の追加
+            // 黒縁取り
             const edgesGeo = new THREE.EdgesGeometry(geometry);
             const edgesMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
             const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
@@ -628,6 +676,7 @@ function buildJengaTower() {
         }
     }
     STATE.physicsActive = false;
+    STATE.physicsTimer = 0;
 }
 
 function createPlayerHands() {
@@ -656,6 +705,7 @@ function createPlayerHands() {
 function activatePhysics() {
     if (STATE.physicsActive) return;
     STATE.physicsActive = true;
+    STATE.physicsTimer = 0;
 
     blocks.forEach(b => {
         b.body.mass = 0.8;
@@ -723,7 +773,17 @@ function animate() {
             blocks[i].mesh.position.copy(blocks[i].body.position);
             blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
         }
-        checkCollapse();
+
+        // タワー全体の揺れチェック（20秒＝1200フレームで強制終了対応）
+        STATE.physicsTimer++;
+        if (STATE.physicsTimer > 1200) {
+            // 20秒以上経過したら強制ストップ
+            STATE.physicsActive = false;
+            finishPhysicsAction();
+        } else {
+            // 全ブロックの動きが収まったか、または崩壊判定
+            checkCollapse();
+        }
     }
 
     if (STATE.gaugeRunning) {
@@ -732,7 +792,7 @@ function animate() {
             STATE.gaugeDir *= -1;
         }
         document.getElementById('gauge-pointer').style.left = STATE.gaugePos + '%';
-        document.getElementById('gauge-val-display').innerText = Math.floor(STATE.gaugePos);
+        document.getElementById('gauge-val-display')->innerText = Math.floor(STATE.gaugePos);
     }
 
     renderer.render(scene, camera);
@@ -966,7 +1026,6 @@ function startPolling() {
                         showOrderScreen();
                     }
                 } else if (STATE.mode === 'ORDER_CONFIRM') {
-                    // ゲスト側でも一覧表を最新に更新
                     showOrderScreen();
                 }
 
@@ -990,7 +1049,7 @@ function updateLobbyUI() {
     const startBtn = document.getElementById('btn-start-roulette');
 
     if (STATE.players.length >= 2) {
-        waitingMsg.innerText = "プレイヤーが揃いました！";
+        waitingMsg.innerText = "プレイヤーが揃えました！";
         if (STATE.isHost) {
             startBtn.classList.remove('hidden');
         } else {
@@ -1073,8 +1132,8 @@ function startTurn() {
     document.getElementById('huge-count').classList.add('hidden');
     
     updateGUI();
+    updateCentralStatus();
 
-    // ターン開始中央バナー表示
     const curP = STATE.players[STATE.turnIndex];
     const banner = document.getElementById('turn-banner');
     banner.innerText = `${curP.name} の番です`;
@@ -1131,6 +1190,22 @@ function updateGUI() {
         if (cnt > 0) btn.classList.add('active');
         else btn.classList.remove('active');
     });
+
+    updateCentralStatus();
+}
+
+// 画面中央付近にプレイヤー名と体力値を大きく表示
+function updateCentralStatus() {
+    const cs = document.getElementById('central-battle-status');
+    cs.classList.remove('hidden');
+    const curP = STATE.players[STATE.turnIndex];
+    const targetP = STATE.players[STATE.targetPlayerIndex] || STATE.players[(STATE.turnIndex + 1) % STATE.players.length];
+    
+    cs.innerHTML = `
+        <span style="color:#ffcc00;">攻: ${curP.name} (HP:${curP.hp})</span>
+        <span>VS</span>
+        <span style="color:#00ffff;">防: ${targetP.name} (HP:${targetP.hp})</span>
+    `;
 }
 
 window.addEventListener('pointerdown', (e) => {
@@ -1161,6 +1236,7 @@ window.addEventListener('pointerdown', (e) => {
     }
 });
 
+// 2名での対戦でも必ず攻撃対象選択画面を表示するように修正
 function selectTargetPlayer() {
     STATE.phase = 'TARGET_SELECT';
     let html = `<div class="target-select-list">`;
@@ -1207,6 +1283,7 @@ function openPowerGauge(type) {
     } else if (type === 'POWER') {
         document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】攻撃パワー決定`;
     } else if (type === 'GUARD') {
+        // 防御フェーズでは攻撃対象プレイヤーだけが操作可能に
         document.getElementById('gauge-owner-title').innerText = `🛡️ 【${targetP.name}の防御ターン】防御ゲージをストップ！`;
     }
 }
@@ -1214,6 +1291,12 @@ function openPowerGauge(type) {
 function stopGauge() {
     if (!STATE.gaugeRunning) return;
     
+    // 防御フェーズの場合、防御側プレイヤー以外はストップボタンを押せないように制御
+    if (STATE.phase === 'GUARD' && STATE.myIndex !== STATE.targetPlayerIndex) {
+        alert("あなたではなく、防御プレイヤーの操作番です！");
+        return;
+    }
+
     STATE.gaugeRunning = false;
     const val = Math.floor(STATE.gaugePos);
     document.getElementById('power-gauge-overlay').classList.add('hidden');
@@ -1227,6 +1310,8 @@ function stopGauge() {
     } else if (STATE.phase === 'POWER') {
         STATE.powerScore = val;
         STATE.phase = 'GUARD';
+        
+        // 防御フェーズに移行する旨をポップアップ通知
         showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "相手ガード判定へ", () => {
             openPowerGauge('GUARD');
         });
@@ -1236,7 +1321,9 @@ function stopGauge() {
     }
 }
 
+// 軌道確認時：ポップアップの説明は1度非表示にして全体を確認できるようにする、赤の点線は太くする
 function showTrajectoryPreview() {
+    closePopup(); // ポップアップを一時非表示
     STATE.isZoomed = false;
     STATE.camAngle = 0;
     updateCameraPosition();
@@ -1248,12 +1335,14 @@ function showTrajectoryPreview() {
         points.push(new THREE.Vector3(bPos.x + (STATE.angleHVal - 50) * 0.1, bPos.y + (STATE.angleVVal - 50) * 0.1, bPos.z - 10));
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.5, gapSize: 0.3 });
+        // 赤の点線を太く（linewidth対応マテリアルまたは複数ライン）
+        const material = new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.8, gapSize: 0.3, linewidth: 5 });
         trajectoryLine = new THREE.Line(geometry, material);
         trajectoryLine.computeLineDistances();
         scene.add(trajectoryLine);
     }
 
+    // 全体確認後にボタンでパワー決定へ進む
     showPopup("軌道確認", "全体図の赤い点線が打ち抜き位置と角度です。", "攻撃パワー決定へ", () => {
         if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
         STATE.phase = 'POWER';
@@ -1274,27 +1363,33 @@ function resolveBattleResult() {
     } else {
         const damage = Math.ceil(diff / 10);
         targetP.hp = Math.max(0, targetP.hp - damage);
-        msg += `<b style="color:#ff3333;">${targetP.name} に ${damage} のダメージ！</b>`;
+        msg += `<b style="color:#ff3333; font-size:20px;">${targetP.name} に ${damage} の大ダメージ！</b>`;
         
+        // 派手な画面シェイク＆フラッシュ演出
         document.getElementById('app-container').classList.add('shake');
-        setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 400);
+        document.getElementById('app-container').classList.add('battle-flash');
+        setTimeout(() => {
+            document.getElementById('app-container').classList.remove('shake');
+            document.getElementById('app-container').classList.remove('battle-flash');
+        }, 600);
     }
 
+    // 物理演算：ブロックの打ち抜きと、それに伴うジェンガタワー全体の揺れ開始
     activatePhysics();
 
     if (STATE.selectedBlock) {
-        const pushForce = (STATE.powerScore / 50) * 8;
+        const pushForce = (STATE.powerScore / 50) * 10;
         const dirZ = STATE.selectedBlock.isRotated ? 0 : -pushForce;
         const dirX = STATE.selectedBlock.isRotated ? -pushForce : 0;
 
         STATE.selectedBlock.body.applyImpulse(
-            new CANNON.Vec3(dirX, 0, dirZ),
+            new CANNON.Vec3(dirX, 2.0, dirZ),
             STATE.selectedBlock.body.position
         );
         turnP.score++;
     }
 
-    showPopup("結果発表", msg, "ターン終了", () => {
+    showPopup("バトル結果発表", msg, "演出確認・次へ", () => {
         if (targetP.hp <= 0) {
             alert(`${targetP.name} 脱落！`);
         }
@@ -1302,6 +1397,13 @@ function resolveBattleResult() {
     });
 }
 
+// 揺れが完全に止まった、または20秒経過した場合に次のアクションへ移行するハンドラ
+function finishPhysicsAction() {
+    STATE.physicsActive = false;
+    // 必要に応じた追加処理
+}
+
+// アイテム使用演出を全体的に派手に改良
 function useItem(type) {
     const p = STATE.players[STATE.turnIndex];
     if (!p.items[type] || p.items[type] <= 0) return;
@@ -1309,13 +1411,25 @@ function useItem(type) {
     p.items[type]--;
     updateGUI();
 
+    // 派手な演出の付与
+    document.getElementById('app-container').classList.add('shake');
+    setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 400);
+
     if (type === 'pass') {
-        showPopup("アイテム発動", "【パス】を使用しました。ターンをスキップします。", "OK", () => nextTurn());
+        showPopup("⚡ 秘技発動 ⚡", "【パス】を発動！華麗にターンをスキップします！", "OK", () => nextTurn());
     } else if (type === 'sneeze') {
         document.getElementById('spit-overlay').classList.remove('hidden');
-        showPopup("アイテム発動", "【くしゃみ】発動！画面が汚れた！", "OK");
+        showPopup("💨 くしゃみ炸裂 💨", "強烈なくしゃみで対戦相手の画面が汚れた！！", "OK");
+    } else if (type === 'ojama') {
+        showPopup("🌀 お邪魔発動 🌀", "相手の視界とバランスを妨害するお邪魔ブロックを投下！", "OK");
+    } else if (type === 'renzoku') {
+        showPopup("🔥 連続ターン 🔥", "驚異の集中力！もう一度自分のターンを実行可能！", "OK");
+    } else if (type === 'ganriki') {
+        showPopup("👁️ 眼力発動 👁️", "透き通る眼力で次のブロックの弱点を見抜いた！", "OK");
+    } else if (type === 'rob') {
+        showPopup("💰 強奪発導 💰", "相手のアイテムを華麗にスリ奪った！", "OK");
     } else {
-        showPopup("アイテム発動", `【${type.toUpperCase()}】を発動しました！`, "OK");
+        showPopup("✨ アイテム発動 ✨", `【${type.toUpperCase()}】を発動しました！`, "OK");
     }
 }
 
