@@ -361,7 +361,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタックVer1.1<br><span style="font-size:18px; color:#fff;">Online (4桁ID対応)</span></div>
+        <div class="title-logo">ジェンガアタックVer1.3<br><span style="font-size:18px; color:#fff;">Online</span></div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -446,7 +446,7 @@ const STATE = {
     targetPlayerIndex: 0,
     angleHVal: 50,
     angleVVal: 50,
-    roomPin: null, // 4桁の部屋番号
+    roomPin: null,
     myName: ""
 };
 
@@ -734,7 +734,6 @@ function selectGuest() {
     document.getElementById('menu-name').classList.remove('hidden');
 }
 
-// プレイヤー名決定
 function submitName() {
     const input = document.getElementById('player-name-input').value.trim();
     const regex = /^[ぁ-んー0-9]+$/;
@@ -754,14 +753,27 @@ function submitName() {
     }
 }
 
-// マスターBinを取得、または新規作成する関数
+// 共通マスターBinを自動取得（または自動作成）する関数
 async function getOrCreateMasterBinId() {
-    let masterId = localStorage.getItem('jenga_master_bin_id');
-    if (masterId) return masterId;
-
-    // 初回のみマスター用Binを自動作成
     try {
-        const res = await fetch("https://api.jsonbin.io/v3/b", {
+        // アカウント内のBin一覧を取得して共有マスターBinを特定する
+        const listRes = await fetch("https://api.jsonbin.io/v3/b", {
+            method: "GET",
+            headers: {
+                "X-Master-Key": JSONBIN_API_KEY
+            }
+        });
+        
+        if (listRes.ok) {
+            const data = await listRes.json();
+            const bins = Array.isArray(data) ? data : (data.record ? [data] : []);
+            if (bins.length > 0 && bins[0].id) {
+                return bins[0].id;
+            }
+        }
+
+        // Binがまだ1つもない場合は新規作成
+        const createRes = await fetch("https://api.jsonbin.io/v3/b", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -770,12 +782,10 @@ async function getOrCreateMasterBinId() {
             },
             body: JSON.stringify({ rooms: {} })
         });
-        const data = await res.json();
-        masterId = data.metadata.id;
-        localStorage.setItem('jenga_master_bin_id', masterId);
-        return masterId;
+        const createData = await createRes.json();
+        return createData.metadata.id;
     } catch(e) {
-        console.error("Master Bin creation error", e);
+        console.error("Master Bin error", e);
         return null;
     }
 }
@@ -801,21 +811,19 @@ async function createRoomWithPin() {
     }
 
     try {
-        // 現在のマスターデータを取得
         const res = await fetch(`https://api.jsonbin.io/v3/b/${masterId}/latest`, {
             headers: { "X-Master-Key": JSONBIN_API_KEY }
         });
         const data = await res.json();
         const masterData = data.record || { rooms: {} };
+        if (!masterData.rooms) masterData.rooms = {};
 
-        // 新しい部屋データを追加
         masterData.rooms[pin] = {
             players: STATE.players,
             phase: 'LOBBY',
             turnIndex: 0
         };
 
-        // マスターBinを更新
         await fetch(`https://api.jsonbin.io/v3/b/${masterId}`, {
             method: "PUT",
             headers: {
@@ -857,7 +865,7 @@ async function connectGuest() {
         const data = await res.json();
         const masterData = data.record;
 
-        if (!masterData.rooms || !masterData.rooms[pin]) {
+        if (!masterData || !masterData.rooms || !masterData.rooms[pin]) {
             alert("指定された4桁の部屋が見つかりません。");
             return;
         }
@@ -912,7 +920,6 @@ async function updateMasterData(masterData) {
     }
 }
 
-// 定期的な同期（ポーリング）
 function startPolling() {
     if (pollingTimer) clearInterval(pollingTimer);
     pollingTimer = setInterval(async () => {
@@ -924,8 +931,8 @@ function startPolling() {
             });
             if (res.ok) {
                 const data = await res.json();
-                const room = data.record.rooms[STATE.roomPin];
-                if (room) {
+                if (data.record && data.record.rooms && data.record.rooms[STATE.roomPin]) {
+                    const room = data.record.rooms[STATE.roomPin];
                     STATE.players = room.players;
 
                     if (STATE.mode === 'LOBBY') {
@@ -963,7 +970,6 @@ function updateLobbyUI() {
     }
 }
 
-// ルーレット開始
 async function startOrderRoulette() {
     document.getElementById('menu-screen').classList.add('hidden');
     
@@ -1109,7 +1115,6 @@ function updateGUI() {
     });
 }
 
-// ブロック選択タップ判定
 window.addEventListener('pointerdown', (e) => {
     if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
     if (STATE.turnIndex !== STATE.myIndex) return;
