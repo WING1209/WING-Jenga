@@ -15,11 +15,13 @@
             margin: 0;
             padding: 0;
             font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            touch-action: none; /* スマホ特有のスワイプスクロール等を防止 */
         }
         body, html {
             width: 100%;
             height: 100%;
             overflow: hidden;
+            overscroll-behavior: none;
             background-color: #000;
             color: #fff;
             display: flex;
@@ -37,6 +39,7 @@
             flex-direction: column;
             background: #1a1a1a;
             box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            overflow: hidden;
         }
 
         #pc-block-overlay {
@@ -189,7 +192,7 @@
         .popup-transparent-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.4);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -439,7 +442,7 @@
     </div>
 
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer3<br><span style="font-size:18px; color:#fff;">Online</span></div>
+        <div class="title-logo">ジェンガアタックVer1<br><span style="font-size:18px; color:#fff;">Online</span></div>
         <div class="blink-text">TAP TO START</div>
     </div>
 
@@ -744,6 +747,13 @@ let longPressTimer = null;
 function initTouchControls() {
     const container = document.getElementById('canvas-container');
 
+    // 画面誤スクロール防止（【②】対応）
+    window.addEventListener('touchmove', (e) => {
+        if (e.target.tagName !== 'INPUT') {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
     container.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
             touchStartY = e.touches[0].clientY;
@@ -751,7 +761,6 @@ function initTouchControls() {
             touchStartTime = Date.now();
             isLongPress = false;
 
-            // 長押し検知（400ms以上動かずに押されていたら長押しとみなしてジェンガ選択無効）
             longPressTimer = setTimeout(() => {
                 isLongPress = true;
             }, 400);
@@ -773,7 +782,6 @@ function initTouchControls() {
             const touchY = e.touches[0].clientY;
             const touchX = e.touches[0].clientX;
             
-            // 少しでも動いたら長押し・タップ選択を無効化してスライド操作に専念
             if (Math.abs(touchX - touchStartX) > 10 || Math.abs(touchY - touchStartY) > 10) {
                 if (longPressTimer) clearTimeout(longPressTimer);
                 isLongPress = true;
@@ -792,21 +800,18 @@ function initTouchControls() {
                 }
             }
         }
-    }, {passive: true});
+    }, {passive: false});
 
     container.addEventListener('touchend', (e) => {
         if (longPressTimer) clearTimeout(longPressTimer);
         
-        // タップ判定：長押しでなく、短時間かつ移動がほとんどない場合のみジェンガ選択処理を行う
         if (!isLongPress && (Date.now() - touchStartTime < 400)) {
-            // タップ位置を元にレイキャスト判定
             const touch = e.changedTouches[0];
             handleBlockSelection(touch.clientX, touch.clientY);
         }
     }, {passive: true});
 }
 
-// PCでのクリック用サポート
 window.addEventListener('pointerdown', (e) => {
     touchStartX = e.clientX;
     touchStartY = e.clientY;
@@ -829,7 +834,6 @@ window.addEventListener('pointerup', (e) => {
     if (isLongPress) return;
     if (Date.now() - touchStartTime > 400) return;
     
-    // スマホのtouchendと重複しないようマウス操作のみまたはタッチ非対応環境用
     if (e.pointerType === 'mouse') {
         handleBlockSelection(e.clientX, e.clientY);
     }
@@ -972,6 +976,17 @@ async function createRoomWithPin() {
     STATE.myIndex = 0;
 
     try {
+        // 【①】JSONBinのデータ構造を完全正規化
+        const roomData = {
+            pin: pin,
+            players: STATE.players,
+            phase: 'LOBBY',
+            turnIndex: 0,
+            targetPlayerIndex: 0,
+            powerScore: 0,
+            guardScore: 0
+        };
+
         const res = await fetch("https://api.jsonbin.io/v3/b", {
             method: "POST",
             headers: {
@@ -979,15 +994,7 @@ async function createRoomWithPin() {
                 "X-Master-Key": JSONBIN_API_KEY,
                 "X-Bin-Private": "false"
             },
-            body: JSON.stringify({
-                pin: pin,
-                players: STATE.players,
-                phase: 'LOBBY',
-                turnIndex: 0,
-                targetPlayerIndex: 0,
-                powerScore: 0,
-                guardScore: 0
-            })
+            body: JSON.stringify(roomData)
         });
 
         if (!res.ok) {
@@ -1072,7 +1079,7 @@ async function connectGuest() {
         }
 
         const roomJson = await roomRes.json();
-        const foundRoomData = roomJson.record;
+        const foundRoomData = roomJson.record || roomJson;
 
         STATE.roomPin = pin;
         STATE.myRoomBinId = targetBinId;
@@ -1091,8 +1098,8 @@ async function connectGuest() {
             await updateRoomData({
                 pin: STATE.roomPin,
                 players: STATE.players,
-                phase: foundRoomData.phase,
-                turnIndex: foundRoomData.turnIndex,
+                phase: foundRoomData.phase || 'LOBBY',
+                turnIndex: foundRoomData.turnIndex || 0,
                 targetPlayerIndex: foundRoomData.targetPlayerIndex || 0,
                 powerScore: foundRoomData.powerScore || 0,
                 guardScore: foundRoomData.guardScore || 0
@@ -1130,8 +1137,12 @@ async function updateRoomData(roomData) {
     }
 }
 
+// 【④】ポーリングタイマーの重複起動を確実に防止
 function startPolling() {
-    if (pollingTimer) clearInterval(pollingTimer);
+    if (pollingTimer) {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+    }
     
     pollingTimer = setInterval(async () => {
         if (!STATE.myRoomBinId) return;
@@ -1160,19 +1171,19 @@ function startPolling() {
                 } else if (STATE.mode === 'ORDER_CONFIRM') {
                     showOrderScreen();
                 } else if (STATE.mode === 'GAME') {
-                    // 防衛フェーズ（GUARD）移行検知
+                    // 【③】防衛フェーズ（GUARD）移行時に誤ったポップアップを残さない制御
                     if (room.phase === 'GUARD' && document.getElementById('power-gauge-overlay').classList.contains('hidden') && !STATE.gaugeRunning) {
                         if (STATE.myIndex === STATE.targetPlayerIndex) {
+                            closePopup();
                             openPowerGauge('GUARD');
                         } else {
-                            // 攻撃側にはプリーズウエイトを表示
                             showPleaseWaitPopup("相手の防御操作を待っています...");
                         }
                     }
                 }
 
                 if (room.phase === 'GAME' && STATE.mode !== 'GAME') {
-                    clearInterval(pollingTimer);
+                    if (pollingTimer) clearInterval(pollingTimer);
                     closePopup();
                     startGame();
                 }
@@ -1191,7 +1202,7 @@ function updateLobbyUI() {
     const startBtn = document.getElementById('btn-start-roulette');
 
     if (STATE.players.length >= 2) {
-        waitingMsg.innerText = "プレイヤーが揃えました！";
+        waitingMsg.innerText = "プレイヤーが揃いました！";
         if (STATE.isHost) {
             startBtn.classList.remove('hidden');
         } else {
@@ -1355,7 +1366,6 @@ function updateCentralStatus() {
     `;
 }
 
-// 攻撃対象選択用の一時変数
 let tempSelectedTargetIndex = -1;
 
 function selectTargetPlayer() {
@@ -1367,7 +1377,6 @@ function selectTargetPlayer() {
 function renderTargetSelectPopup() {
     let html = `<div class="target-select-list" style="display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:200px; overflow-y:auto;">`;
     STATE.players.forEach((p, i) => {
-        // 自分自身（自分のインデックス）は攻撃対象に選べないよう除外
         if (i !== STATE.myIndex) {
             const isSelected = (tempSelectedTargetIndex === i);
             html += `<div style="background:${isSelected ? '#554422' : '#333'}; border:2px solid ${isSelected ? '#ffcc00' : '#555'}; padding:10px; border-radius:6px; cursor:pointer; text-align:left;" onclick="window.tempSelectTarget(${i})">
@@ -1430,7 +1439,6 @@ function openPowerGauge(type) {
         bg.classList.remove('vertical-gauge');
     }
 
-    // 防御フェーズ（GUARD）の役割分離チェック：防御プレイヤー以外にはゲージを出さず待機表示にする
     if (type === 'GUARD') {
         if (STATE.myIndex !== STATE.targetPlayerIndex) {
             showPleaseWaitPopup("相手の防御操作を待っています...");
@@ -1438,6 +1446,7 @@ function openPowerGauge(type) {
         }
     }
 
+    closePopup(); // 【③】既存ポップアップを削除してからオーバーレイ表示
     overlay.classList.remove('hidden');
     
     STATE.gaugeRunning = true;
@@ -1461,7 +1470,6 @@ function openPowerGauge(type) {
 async function stopGauge() {
     if (!STATE.gaugeRunning) return;
     
-    // ガードフェーズでの操作権チェック（防御プレイヤー以外操作無効）
     if (STATE.phase === 'GUARD' && STATE.myIndex !== STATE.targetPlayerIndex) {
         alert("あなたではなく、防御プレイヤーの操作番です！");
         return;
@@ -1495,7 +1503,11 @@ async function stopGauge() {
         });
 
         showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "", null);
-        showPleaseWaitPopup("相手の防御操作を待っています...");
+        setTimeout(() => {
+            if (STATE.myIndex !== STATE.targetPlayerIndex) {
+                showPleaseWaitPopup("相手の防御操作を待っています...");
+            }
+        }, 1200);
     } else if (STATE.phase === 'GUARD') {
         STATE.guardScore = val;
         STATE.phase = 'RESULT';
@@ -1563,7 +1575,6 @@ function showTrajectoryPreview() {
         STATE.camAngle += 0.05;
         updateCameraPosition();
 
-        // 起動で打ち抜く素振りアニメーション（棒が前後に伸縮する演出）
         if (trajectoryLine) {
             stabProgress += 0.25;
             const scaleFactor = 1 + Math.sin(stabProgress) * 0.25;
@@ -1589,6 +1600,7 @@ function showTrajectoryPreview() {
 }
 
 function resolveBattleResult() {
+    closePopup(); // 【③】以前の待機ポップアップを確実にクリア
     const diff = STATE.powerScore - STATE.guardScore;
     const turnP = STATE.players[STATE.turnIndex];
     const targetP = STATE.players[STATE.targetPlayerIndex];
