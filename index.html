@@ -362,7 +362,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタックVer1.5<br><span style="font-size:18px; color:#fff;">Online </span></div>
+        <div class="title-logo">ジェンガアタックVer2.0<br><span style="font-size:18px; color:#fff;">Online </span></div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -423,9 +423,8 @@
 
 <script>
 const JSONBIN_API_KEY = "$2a$10$p.cJHnRnt3oBn8Mtny/WpOekHU3EyeeZj0MUaHY2sDWoFNV1wjIN.";
-// 部屋の一覧を管理するための「共通掲示板用マスターBin ID」
-// ※ホストが最初に自動生成・更新するか、あらかじめ共有されるマスターの箱IDです
-const MASTER_BOARD_BIN_ID = "67c004c2acd3cb34a8dec2e1"; // 初期用の共通管理Bin ID（自動で新規作成も行われます）
+// あなたが作成した共通掲示板のBin IDを設定済み
+const MASTER_BOARD_BIN_ID = "6a954f24f5f4af5e29572441";
 
 const STATE = {
     mode: 'TITLE',
@@ -758,7 +757,6 @@ function submitName() {
     }
 }
 
-// 1. ホスト：部屋専用のデータ箱を作り、共通掲示板に4桁IDと紐付けて登録する
 async function createRoomWithPin() {
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
     STATE.roomPin = pin;
@@ -773,7 +771,6 @@ async function createRoomWithPin() {
     STATE.myIndex = 0;
 
     try {
-        // ① 個別の部屋用データ箱を作成
         const res = await fetch("https://api.jsonbin.io/v3/b", {
             method: "POST",
             headers: {
@@ -796,8 +793,6 @@ async function createRoomWithPin() {
         }
 
         STATE.myRoomBinId = data.metadata.id;
-
-        // ② 共通の掲示板（マスターBin）に「4桁ID ＝ 部屋BinID」を登録する
         await registerToMasterBoard(pin, STATE.myRoomBinId);
 
         document.getElementById('room-id-display').innerText = `ルームID: 【 ${pin} 】`;
@@ -811,11 +806,9 @@ async function createRoomWithPin() {
     }
 }
 
-// 共通掲示板にルーム情報を書き込む処理
 async function registerToMasterBoard(pin, binId) {
     try {
         let boardRooms = {};
-        // 現在の掲示板データを取得
         const getRes = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}/latest`, {
             headers: { "X-Master-Key": JSONBIN_API_KEY }
         });
@@ -824,10 +817,8 @@ async function registerToMasterBoard(pin, binId) {
             boardRooms = getData.record || {};
         }
 
-        // 新しい部屋を追加
         boardRooms[pin] = binId;
 
-        // 掲示板を更新
         await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}`, {
             method: "PUT",
             headers: {
@@ -841,7 +832,6 @@ async function registerToMasterBoard(pin, binId) {
     }
 }
 
-// 2. ゲスト：共通掲示板から4桁IDに一致する部屋のデータ箱IDを瞬時に引き当てる
 async function connectGuest() {
     const pin = document.getElementById('guest-id-input').value.trim();
     if (!pin || pin.length !== 4) {
@@ -850,7 +840,6 @@ async function connectGuest() {
     }
 
     try {
-        // 共通掲示板から全ルームの対応表を取得
         const boardRes = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}/latest`, {
             headers: { "X-Master-Key": JSONBIN_API_KEY }
         });
@@ -869,7 +858,6 @@ async function connectGuest() {
             return;
         }
 
-        // 見つかった部屋のデータを取得
         const roomRes = await fetch(`https://api.jsonbin.io/v3/b/${targetBinId}/latest`, {
             headers: { "X-Master-Key": JSONBIN_API_KEY }
         });
