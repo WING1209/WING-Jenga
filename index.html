@@ -27,7 +27,6 @@
             align-items: center;
         }
 
-        /* スマホ専用サイズコンテナ（PCでの強制制限） */
         #app-container {
             width: 100vw;
             height: 100vh;
@@ -40,7 +39,6 @@
             box-shadow: 0 0 20px rgba(0,0,0,0.8);
         }
 
-        /* PCブロック用オーバーレイ */
         #pc-block-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -68,7 +66,6 @@
             height: 100%;
         }
 
-        /* カメラ操作用の半透明矢印ボタン */
         .cam-arrow {
             position: absolute;
             top: 50%;
@@ -165,7 +162,6 @@
             box-shadow: 0 0 6px #ff9900;
         }
 
-        /* 大きくしたコントロールボタン */
         .controls-info {
             background: #223344;
             color: #aaddff;
@@ -226,6 +222,7 @@
             border-radius: 6px;
             font-size: 16px;
             font-weight: bold;
+            cursor: pointer;
         }
         .menu-btn:active { background: #666; }
         
@@ -326,7 +323,6 @@
 </head>
 <body>
 
-<!-- PC用ブロックオーバーレイ -->
 <div id="pc-block-overlay">
     <h2 style="color: #ff3333; margin-bottom: 15px;">⚠️ スマホ専用ゲームです</h2>
     <p style="font-size: 14px; color: #ccc; line-height: 1.6;">
@@ -412,7 +408,7 @@
     <div id="popup-overlay" class="overlay hidden">
         <div class="menu-box" id="popup-content">
             <h3 id="popup-title">タイトル</h3>
-            <p id="popup-body">本文</p>
+            <div id="popup-body">本文</div>
             <button class="menu-btn" id="popup-btn" onclick="closePopup()">OK</button>
         </div>
     </div>
@@ -441,7 +437,7 @@ const STATE = {
     timer: 40,
     timerInterval: null,
     selectedBlock: null,
-    camAngle: 0, // ラジアン
+    camAngle: 0,
     camHeight: 12,
     isZoomed: false,
     activeItem: null,
@@ -469,13 +465,12 @@ const HAND_SKINS = [
 let scene, camera, renderer, world;
 let blocks = [];
 let handMeshes = [];
-let trajectoryLine = null; // 赤い点線
+let trajectoryLine = null;
 
 function init3D() {
     const container = document.getElementById('canvas-container');
     
     scene = new THREE.Scene();
-    // 背景：青空 (Skylight Blue)
     scene.background = new THREE.Color(0x87ceeb);
 
     camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
@@ -493,7 +488,7 @@ function init3D() {
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    createEnvironment(); // 雲と虹
+    createEnvironment();
 
     world = new CANNON.World();
     world.gravity.set(0, -9.82, 0);
@@ -512,9 +507,7 @@ function init3D() {
     animate();
 }
 
-// 青空の背景装飾（雲と虹）
 function createEnvironment() {
-    // 雲の生成
     const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0, transparent: true, opacity: 0.8 });
     for (let i = 0; i < 5; i++) {
         const cloudGroup = new THREE.Group();
@@ -531,7 +524,6 @@ function createEnvironment() {
         scene.add(cloudGroup);
     }
 
-    // 虹の生成（上空に半円状のTorus）
     const rainbowGeo = new THREE.TorusGeometry(18, 0.4, 16, 100, Math.PI);
     const rainbowMat = new THREE.MeshBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.4 });
     const rainbow = new THREE.Mesh(rainbowGeo, rainbowMat);
@@ -652,7 +644,6 @@ function activatePhysics() {
     });
 }
 
-// カメラ位置更新（回転・高さ・ズーム）
 function updateCameraPosition() {
     const dist = STATE.isZoomed ? 7 : 22;
     const targetY = STATE.isZoomed ? STATE.camHeight : 12;
@@ -667,7 +658,6 @@ function rotateCam(dir) {
     updateCameraPosition();
 }
 
-// タッチコントロール（上下スワイプによる高さ移動、ダブルタップによる近接切替）
 let lastTapTime = 0;
 let touchStartY = 0;
 
@@ -678,11 +668,9 @@ function initTouchControls() {
         if (e.touches.length === 1) {
             touchStartY = e.touches[0].clientY;
             
-            // ダブルタップ判定
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTapTime;
             if (tapLength < 300 && tapLength > 0) {
-                // ダブルタップ：近接・遠いの切替
                 STATE.isZoomed = !STATE.isZoomed;
                 updateCameraPosition();
             }
@@ -696,9 +684,9 @@ function initTouchControls() {
             const diff = touchStartY - touchY;
             if (Math.abs(diff) > 20) {
                 if (diff > 0) {
-                    STATE.camHeight = Math.min(18, STATE.camHeight + 0.3); // 上へ
+                    STATE.camHeight = Math.min(18, STATE.camHeight + 0.3);
                 } else {
-                    STATE.camHeight = Math.max(1, STATE.camHeight - 0.3); // 下へ
+                    STATE.camHeight = Math.max(1, STATE.camHeight - 0.3);
                 }
                 touchStartY = touchY;
                 updateCameraPosition();
@@ -771,7 +759,8 @@ function submitName() {
         maxHp: 100,
         score: 0,
         items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-        handSkin: myHand
+        handSkin: myHand,
+        isReady: false
     });
 
     document.getElementById('menu-name').classList.add('hidden');
@@ -786,7 +775,8 @@ function submitName() {
                 name: `つわもの${i}`,
                 hp: 100, maxHp: 100, score: 0,
                 items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-                handSkin: HAND_SKINS[(i-1) % HAND_SKINS.length]
+                handSkin: HAND_SKINS[(i-1) % HAND_SKINS.length],
+                isReady: false
             });
         }
         updateLobbyUI();
@@ -808,7 +798,7 @@ function connectGuest() {
     if (id.length === 4) {
         document.getElementById('menu-guest-id').innerHTML = "<h3>接続成功！</h3><p>ホストの開始を待っています...</p>";
         setTimeout(() => {
-            STATE.players.unshift({ name: "ホスト", hp: 100, maxHp: 100, score: 0, items:{}, handSkin: HAND_SKINS[0] });
+            STATE.players.unshift({ name: "ホスト", hp: 100, maxHp: 100, score: 0, items:{}, handSkin: HAND_SKINS[0], isReady: false });
             startOrderRoulette();
         }, 1500);
     } else {
@@ -816,6 +806,7 @@ function connectGuest() {
     }
 }
 
+// 順番決めルーレット（ホストのみストップ操作可能）
 function startOrderRoulette() {
     document.getElementById('menu-screen').classList.add('hidden');
     
@@ -831,22 +822,74 @@ function startOrderRoulette() {
         idx++;
     }, speed);
 
-    document.getElementById('popup-btn').innerText = "ストップ！";
-    document.getElementById('popup-btn').onclick = () => {
-        clearInterval(timer);
-        document.getElementById('app-container').classList.add('shake');
-        setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 500);
-
-        STATE.players.sort(() => Math.random() - 0.5);
-        
-        document.getElementById('popup-title').innerText = "順番決定！";
-        document.getElementById('popup-body').innerHTML = STATE.players.map((p, i) => `${i + 1}番目: ${p.name}`).join('<br>');
-        document.getElementById('popup-btn').innerText = "全員確認してゲーム開始";
-        document.getElementById('popup-btn').onclick = () => {
-            overlay.classList.add('hidden');
-            startGame();
+    const btn = document.getElementById('popup-btn');
+    if (STATE.isHost) {
+        btn.innerText = "ストップ！（ホスト操作）";
+        btn.classList.remove('hidden');
+        btn.onclick = () => {
+            clearInterval(timer);
+            stopRouletteResult();
         };
-    };
+    } else {
+        btn.innerText = "ホストがルーレットを停止するのを待っています...";
+        btn.classList.add('hidden'); // ゲストは停止ボタンを押せない
+    }
+}
+
+function stopRouletteResult() {
+    document.getElementById('app-container').classList.add('shake');
+    setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 500);
+
+    STATE.players.sort(() => Math.random() - 0.5);
+    STATE.players.forEach(p => p.isReady = false); // 確認状態リセット
+    
+    showPlayerConfirmationScreen();
+}
+
+// 各プレイヤーが確認タップして準備する画面
+function showPlayerConfirmationScreen() {
+    document.getElementById('popup-title').innerText = "順番確認 & 準備";
+    
+    let html = `<div style="font-size:12px; margin-bottom:8px; color:#aaa;">各プレイヤーは自分の名前をタップして準備を完了してください：</div>`;
+    html += `<div style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; text-align:left;">`;
+    
+    STATE.players.forEach((p, i) => {
+        const btnBg = p.isReady ? '#006600' : '#444';
+        const btnText = p.isReady ? '✅ 準備完了' : '👉 タップして確認';
+        html += `<div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:6px 10px; border-radius:4px;">
+            <span><b>${i + 1}番:</b> ${p.name}</span>
+            <button class="menu-btn" style="padding:4px 10px; font-size:11px; background:${btnBg};" onclick="confirmPlayerReady(${i})">${btnText}</button>
+        </div>`;
+    });
+    html += `</div>`;
+
+    const allReady = STATE.players.every(p => p.isReady);
+    const btn = document.getElementById('popup-btn');
+
+    if (allReady && STATE.isHost) {
+        html += `<br><button class="menu-btn" style="background:#ff3333; width:100%;" onclick="executeGameStart()">全プレイヤー準備完了 - ゲーム開始</button>`;
+        btn.classList.add('hidden');
+    } else {
+        btn.classList.add('hidden');
+        if (!STATE.isHost && allReady) {
+            html += `<br><div style="color:#ffcc00; font-size:12px; text-align:center;">ホストのゲーム開始ボタンをお待ちください...</div>`;
+        } else if (!allReady) {
+            html += `<br><div style="color:#aaa; font-size:11px; text-align:center;">全員の確認が完了するとホストに開始ボタンが表示されます。</div>`;
+        }
+    }
+
+    document.getElementById('popup-body').innerHTML = html;
+    document.getElementById('popup-overlay').classList.remove('hidden');
+}
+
+window.confirmPlayerReady = function(index) {
+    STATE.players[index].isReady = true;
+    showPlayerConfirmationScreen();
+};
+
+function executeGameStart() {
+    closePopup();
+    startGame();
 }
 
 function startGame() {
@@ -859,7 +902,7 @@ function startGame() {
 
 function startTurn() {
     STATE.phase = 'SELECT';
-    STATE.timer = 40; // 制限時間40秒
+    STATE.timer = 40;
     document.getElementById('huge-count').classList.add('hidden');
     
     updateGUI();
@@ -914,10 +957,11 @@ function updateGUI() {
     });
 }
 
-// タップ時の処理（短側面のみ選択可能の判定）
+// ブロック選択タップ判定（ターンプレイヤーのみ操作可能）
 window.addEventListener('pointerdown', (e) => {
     if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
 
+    // パス＆プレイ環境においてターンのプレイヤーの手番であることを確認
     const rect = renderer.domElement.getBoundingClientRect();
     if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) return;
 
@@ -936,9 +980,8 @@ window.addEventListener('pointerdown', (e) => {
         const blockObj = blocks.find(b => b.mesh === targetMesh);
 
         if (blockObj) {
-            // 短側面（端の面）判定：hit.faceIndexから面を判定、またはヒットしたローカル位置のX/Z端かチェック
             const localPoint = blockObj.mesh.worldToLocal(hit.point.clone());
-            const halfLen = blockObj.isRotated ? 1.5 : 0.5; // 長手方向の半分の長さの目安
+            const halfLen = blockObj.isRotated ? 1.5 : 0.5;
             const isShortSideHit = Math.abs(blockObj.isRotated ? localPoint.x : localPoint.z) >= halfLen - 0.2;
 
             if (!isShortSideHit) {
@@ -957,7 +1000,6 @@ window.addEventListener('pointerdown', (e) => {
     }
 });
 
-// 誰に攻撃するかをプレイヤー名一覧から選択
 function selectTargetPlayer() {
     STATE.phase = 'TARGET_SELECT';
     let html = `<div class="target-select-list">`;
@@ -995,20 +1037,24 @@ function openPowerGauge(type) {
     STATE.gaugeSpeed = Math.random() * 3 + 2;
 
     const curP = STATE.players[STATE.turnIndex];
+    const targetP = STATE.players[STATE.targetPlayerIndex];
+
     if (type === 'ANGLE_H') {
-        document.getElementById('gauge-owner-title').innerText = `${curP.name} の横軸角度決定`;
+        document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】横軸角度決定`;
     } else if (type === 'ANGLE_V') {
-        document.getElementById('gauge-owner-title').innerText = `${curP.name} の縦軸角度決定`;
+        document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】縦軸角度決定`;
     } else if (type === 'POWER') {
-        document.getElementById('gauge-owner-title').innerText = `${curP.name} の攻撃パワー！`;
+        document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】攻撃パワー決定`;
     } else if (type === 'GUARD') {
-        const targetP = STATE.players[STATE.targetPlayerIndex];
-        document.getElementById('gauge-owner-title').innerText = `🛡️ ${targetP.name} のガードポイント！（他プレイヤー操作無効）`;
+        // 防御時：対象プレイヤーのみが操作可能であることを明示
+        document.getElementById('gauge-owner-title').innerText = `🛡️ 【${targetP.name}の防御ターン】防御ゲージをストップ！`;
     }
 }
 
 function stopGauge() {
     if (!STATE.gaugeRunning) return;
+    
+    // アクションの切り分け：GUARDフェーズのときは対象プレイヤーのみがストップ操作を行える
     STATE.gaugeRunning = false;
     
     const val = Math.floor(STATE.gaugePos);
@@ -1019,7 +1065,6 @@ function stopGauge() {
         setTimeout(startAngleSelectionV, 400);
     } else if (STATE.phase === 'ANGLE_V') {
         STATE.angleVVal = val;
-        // 全体図表示に切り替え、横から見た想定で打ち抜く位置と角度を赤い点線で表示
         showTrajectoryPreview();
     } else if (STATE.phase === 'POWER') {
         STATE.powerScore = val;
@@ -1033,7 +1078,6 @@ function stopGauge() {
     }
 }
 
-// 全体図に切り替え、横から見た想定で赤い点線で軌道・位置を表示
 function showTrajectoryPreview() {
     STATE.isZoomed = false;
     STATE.camAngle = 0;
