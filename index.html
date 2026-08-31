@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ジェンガアタック</title>
-    <!-- Three.js (3D描画) & Cannon.js (物理演算) -->
+    <!-- Three.js & Cannon.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
     <style>
@@ -20,38 +20,84 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #111;
+            background-color: #000;
             color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
+        /* スマホ専用サイズコンテナ（PCでの強制制限） */
         #app-container {
             width: 100vw;
             height: 100vh;
+            max-width: 480px;
+            max-height: 900px;
             position: relative;
             display: flex;
             flex-direction: column;
             background: #1a1a1a;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        /* PCブロック用オーバーレイ */
+        #pc-block-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+        }
+        @media (min-width: 769px) {
+            #pc-block-overlay { display: flex; }
         }
 
         #canvas-container {
             width: 100%;
-            height: 70%;
+            height: 65%;
             position: relative;
+            touch-action: none;
         }
         #three-canvas {
             width: 100%;
             height: 100%;
         }
 
+        /* カメラ操作用の半透明矢印ボタン */
+        .cam-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 45px;
+            height: 45px;
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            cursor: pointer;
+        }
+        #cam-left { left: 10px; }
+        #cam-right { right: 10px; }
+
         #gui-container {
             width: 100%;
-            height: 30%;
-            background: rgba(20, 20, 30, 0.95);
+            height: 35%;
+            background: rgba(20, 20, 30, 0.98);
             border-top: 2px solid #444;
             display: flex;
             flex-direction: column;
-            padding: 8px;
-            gap: 6px;
+            padding: 10px;
+            gap: 8px;
             z-index: 10;
         }
 
@@ -63,16 +109,16 @@
         
         .player-list-mini {
             display: flex;
-            gap: 4px;
+            gap: 6px;
             overflow-x: auto;
             width: 70%;
         }
         .player-card {
             background: #2a2a3a;
-            padding: 4px 6px;
-            border-radius: 4px;
-            font-size: 10px;
-            min-width: 65px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            min-width: 75px;
             border: 1px solid #555;
         }
         .player-card.active {
@@ -80,35 +126,35 @@
             background: #3a3a2a;
         }
         .player-card .hp-bar {
-            height: 4px;
+            height: 6px;
             background: #ff4444;
             width: 100%;
-            margin-top: 2px;
-            border-radius: 2px;
+            margin-top: 3px;
+            border-radius: 3px;
         }
 
         .timer-box {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
             color: #ffcc00;
             background: #000;
-            padding: 4px 10px;
-            border-radius: 4px;
-            border: 1px solid #ffcc00;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 2px solid #ffcc00;
         }
 
         .item-grid {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
-            gap: 4px;
+            gap: 6px;
         }
         .item-btn {
             background: #334;
             color: #888;
             border: 1px solid #555;
-            padding: 6px 0;
-            font-size: 10px;
-            border-radius: 4px;
+            padding: 8px 0;
+            font-size: 11px;
+            border-radius: 6px;
             text-align: center;
             font-weight: bold;
         }
@@ -116,24 +162,20 @@
             background: #ff9900;
             color: #000;
             border-color: #fff;
-            box-shadow: 0 0 5px #ff9900;
+            box-shadow: 0 0 6px #ff9900;
         }
 
-        .controls-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 4px;
-        }
-        .ctrl-btn {
-            background: #225588;
-            color: white;
-            border: none;
-            padding: 8px 0;
-            font-size: 11px;
-            border-radius: 4px;
+        /* 大きくしたコントロールボタン */
+        .controls-info {
+            background: #223344;
+            color: #aaddff;
+            text-align: center;
+            padding: 10px;
+            font-size: 12px;
+            border-radius: 6px;
+            border: 1px solid #446688;
             font-weight: bold;
         }
-        .ctrl-btn:active { background: #3377bb; }
 
         .overlay {
             position: absolute;
@@ -149,7 +191,7 @@
         .hidden { display: none !important; }
 
         .title-logo {
-            font-size: 36px;
+            font-size: 38px;
             font-weight: 900;
             color: #ff3333;
             text-shadow: 0 0 10px #ff0000, 3px 3px 0px #fff;
@@ -179,7 +221,7 @@
         .menu-btn {
             background: #444;
             color: #fff;
-            padding: 12px;
+            padding: 14px;
             border: 1px solid #777;
             border-radius: 6px;
             font-size: 16px;
@@ -189,7 +231,7 @@
         
         input[type="text"] {
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             font-size: 16px;
             text-align: center;
             border-radius: 4px;
@@ -209,25 +251,26 @@
             z-index: 50;
             pointer-events: none;
         }
+
         #power-gauge-overlay {
             position: absolute;
             top: 40%; left: 50%;
             transform: translate(-50%, -50%);
             width: 85%;
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.92);
             border: 2px solid #fff;
-            padding: 15px;
+            padding: 20px;
             border-radius: 10px;
             text-align: center;
             z-index: 60;
         }
         .gauge-bar-bg {
             width: 100%;
-            height: 30px;
+            height: 35px;
             background: linear-gradient(to right, blue 0%, red 100%);
             position: relative;
-            margin: 10px 0;
-            border-radius: 15px;
+            margin: 15px 0;
+            border-radius: 17px;
             overflow: hidden;
         }
         .gauge-pointer {
@@ -249,6 +292,13 @@
             font-weight: 900;
             color: #0099ff;
             text-shadow: 0 0 10px #00ffff;
+        }
+
+        .target-select-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
         }
 
         #spit-overlay {
@@ -276,17 +326,28 @@
 </head>
 <body>
 
+<!-- PC用ブロックオーバーレイ -->
+<div id="pc-block-overlay">
+    <h2 style="color: #ff3333; margin-bottom: 15px;">⚠️ スマホ専用ゲームです</h2>
+    <p style="font-size: 14px; color: #ccc; line-height: 1.6;">
+        このゲームはスマートフォン専用です。<br>
+        スマートフォン（またはブラウザの開発者ツールでスマホビュー）よりアクセスしてください。
+    </p>
+</div>
+
 <div id="app-container">
     <div id="canvas-container">
         <canvas id="three-canvas"></canvas>
-        <div id="huge-count" class="hidden">5</div>
+        <div class="cam-arrow" id="cam-left" onclick="rotateCam(-1)">‹</div>
+        <div class="cam-arrow" id="cam-right" onclick="rotateCam(1)">›</div>
+        <div id="huge-count" class="hidden">40</div>
         <div id="spit-overlay" class="hidden"></div>
     </div>
 
     <div id="gui-container">
         <div class="gui-row">
             <div class="player-list-mini" id="gui-player-list"></div>
-            <div class="timer-box" id="gui-timer">20</div>
+            <div class="timer-box" id="gui-timer">40</div>
         </div>
 
         <div class="item-grid">
@@ -298,11 +359,8 @@
             <div class="item-btn" id="item-rob" onclick="useItem('rob')">強奪<br><span id="count-rob">0</span></div>
         </div>
 
-        <div class="controls-grid">
-            <button class="ctrl-btn" onclick="setViewMode('all')">全体</button>
-            <button class="ctrl-btn" onclick="cycleFace()">面 <span id="face-num">1</span></button>
-            <button class="ctrl-btn" onclick="setViewMode('zoom')">近接</button>
-            <button class="ctrl-btn" onclick="cycleTier()">段数 <span id="tier-num">1</span></button>
+        <div class="controls-info">
+            💡 左右矢印: 回転 | ダブルタップ: 近接/全体 | 上下スワイプ: 高さ移動
         </div>
     </div>
 
@@ -367,7 +425,7 @@
         <div style="display:flex; justify-content:space-between; font-size:10px;">
             <span>0📶</span><span>100</span>
         </div>
-        <div id="gauge-val-display" style="font-size:20px; font-weight:bold; margin:5px 0;">50</div>
+        <div id="gauge-val-display" style="font-size:22px; font-weight:bold; margin:8px 0;">50</div>
         <button class="menu-btn" id="gauge-stop-btn" onclick="stopGauge()">STOP!</button>
     </div>
 </div>
@@ -380,64 +438,68 @@ const STATE = {
     myIndex: 0,
     players: [],
     turnIndex: 0,
-    timer: 20,
+    timer: 40,
     timerInterval: null,
     selectedBlock: null,
-    currentFace: 1,
-    currentTier: 1,
+    camAngle: 0, // ラジアン
+    camHeight: 12,
+    isZoomed: false,
     activeItem: null,
     gaugeRunning: false,
-    gaugeVal: 0,
     gaugeSpeed: 2,
     gaugePos: 0,
     gaugeDir: 1,
     powerScore: 0,
     guardScore: 0,
     phase: 'SELECT',
-    physicsActive: false // 物理シミュレーション発動フラグ
+    physicsActive: false,
+    targetPlayerIndex: 0,
+    angleHVal: 50,
+    angleVVal: 50
 };
 
 const HAND_SKINS = [
-    { skin: 0xffdbac, nail: 0xff0055, length: 1.0 },
-    { skin: 0x8d5524, nail: 0x00ffff, length: 1.2 },
-    { skin: 0xe0ac69, nail: 0x9900cc, length: 0.9 },
-    { skin: 0xf1c27d, nail: 0x00ff00, length: 1.1 },
-    { skin: 0xc68642, nail: 0xff6600, length: 1.0 }
+    { skin: 0xffdbac, nail: 0xff0055 },
+    { skin: 0x8d5524, nail: 0x00ffff },
+    { skin: 0xe0ac69, nail: 0x9900cc },
+    { skin: 0xf1c27d, nail: 0x00ff00 },
+    { skin: 0xc68642, nail: 0xff6600 }
 ];
 
 let scene, camera, renderer, world;
 let blocks = [];
 let handMeshes = [];
+let trajectoryLine = null; // 赤い点線
 
 function init3D() {
     const container = document.getElementById('canvas-container');
     
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a24);
+    // 背景：青空 (Skylight Blue)
+    scene.background = new THREE.Color(0x87ceeb);
 
     camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-    camera.position.set(0, 12, 25);
-    camera.lookAt(0, 6, 0);
+    updateCameraPosition();
 
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.shadowMap.enabled = true;
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(10, 20, 10);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight.position.set(10, 30, 10);
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    // 物理ワールドの設定（摩擦・反発調整）
+    createEnvironment(); // 雲と虹
+
     world = new CANNON.World();
     world.gravity.set(0, -9.82, 0);
     world.broadphase = new CANNON.NaiveBroadphase();
-    world.solver.iterations = 20; // 演算の精度を上げて倒れにくく改善
+    world.solver.iterations = 20;
 
-    // 摩擦と反発のパラメータを安定化
     const woodMaterial = new CANNON.Material('wood');
     const contactMaterial = new CANNON.ContactMaterial(woodMaterial, woodMaterial, {
         friction: 0.6,
@@ -446,7 +508,36 @@ function init3D() {
     world.addContactMaterial(contactMaterial);
 
     createTable(woodMaterial);
+    initTouchControls();
     animate();
+}
+
+// 青空の背景装飾（雲と虹）
+function createEnvironment() {
+    // 雲の生成
+    const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0, transparent: true, opacity: 0.8 });
+    for (let i = 0; i < 5; i++) {
+        const cloudGroup = new THREE.Group();
+        const count = 3 + Math.floor(Math.random() * 3);
+        for (let j = 0; j < count; j++) {
+            const geo = new THREE.SphereGeometry(1.5 + Math.random(), 8, 8);
+            const mesh = new THREE.Mesh(geo, cloudMat);
+            mesh.position.set(j * 1.5, Math.random() * 0.5, Math.random() * 1);
+            cloudGroup.add(mesh);
+        }
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 25 + Math.random() * 10;
+        cloudGroup.position.set(Math.cos(angle) * dist, 15 + Math.random() * 10, Math.sin(angle) * dist);
+        scene.add(cloudGroup);
+    }
+
+    // 虹の生成（上空に半円状のTorus）
+    const rainbowGeo = new THREE.TorusGeometry(18, 0.4, 16, 100, Math.PI);
+    const rainbowMat = new THREE.MeshBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.4 });
+    const rainbow = new THREE.Mesh(rainbowGeo, rainbowMat);
+    rainbow.position.set(0, 10, 0);
+    rainbow.rotation.x = Math.PI / 2;
+    scene.add(rainbow);
 }
 
 function createTable(material) {
@@ -509,7 +600,6 @@ function buildJengaTower() {
                 (isRotated ? blockWidth : blockLength) / 2
             ));
             
-            // ★【修正ポイント1】初期状態では質量(mass)を0にして静止・固定状態にする
             const body = new CANNON.Body({ mass: 0, shape: shape });
             body.position.set(posX, posY, posZ);
             if (isRotated) {
@@ -552,21 +642,74 @@ function createPlayerHands() {
     });
 }
 
-// ★【修正ポイント2】アクション実行時のみ質量を与えて物理計算を開始
 function activatePhysics() {
     if (STATE.physicsActive) return;
     STATE.physicsActive = true;
 
     blocks.forEach(b => {
-        b.body.mass = 0.8; // 物理適用
+        b.body.mass = 0.8;
         b.body.updateMassProperties();
     });
+}
+
+// カメラ位置更新（回転・高さ・ズーム）
+function updateCameraPosition() {
+    const dist = STATE.isZoomed ? 7 : 22;
+    const targetY = STATE.isZoomed ? STATE.camHeight : 12;
+    const x = Math.sin(STATE.camAngle) * dist;
+    const z = Math.cos(STATE.camAngle) * dist;
+    camera.position.set(x, targetY, z);
+    camera.lookAt(0, STATE.isZoomed ? STATE.camHeight : 6, 0);
+}
+
+function rotateCam(dir) {
+    STATE.camAngle += dir * (Math.PI / 4);
+    updateCameraPosition();
+}
+
+// タッチコントロール（上下スワイプによる高さ移動、ダブルタップによる近接切替）
+let lastTapTime = 0;
+let touchStartY = 0;
+
+function initTouchControls() {
+    const container = document.getElementById('canvas-container');
+
+    container.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            touchStartY = e.touches[0].clientY;
+            
+            // ダブルタップ判定
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTapTime;
+            if (tapLength < 300 && tapLength > 0) {
+                // ダブルタップ：近接・遠いの切替
+                STATE.isZoomed = !STATE.isZoomed;
+                updateCameraPosition();
+            }
+            lastTapTime = currentTime;
+        }
+    }, {passive: true});
+
+    container.addEventListener('touchmove', (e) => {
+        if (STATE.isZoomed && e.touches.length === 1) {
+            const touchY = e.touches[0].clientY;
+            const diff = touchStartY - touchY;
+            if (Math.abs(diff) > 20) {
+                if (diff > 0) {
+                    STATE.camHeight = Math.min(18, STATE.camHeight + 0.3); // 上へ
+                } else {
+                    STATE.camHeight = Math.max(1, STATE.camHeight - 0.3); // 下へ
+                }
+                touchStartY = touchY;
+                updateCameraPosition();
+            }
+        }
+    }, {passive: true});
 }
 
 function animate() {
     requestAnimationFrame(animate);
 
-    // アクションが発動して物理演算がONの時のみシミュレーションを実行
     if (STATE.mode === 'GAME' && STATE.physicsActive) {
         world.step(1 / 60);
         for (let i = 0; i < blocks.length; i++) {
@@ -716,7 +859,7 @@ function startGame() {
 
 function startTurn() {
     STATE.phase = 'SELECT';
-    STATE.timer = 20;
+    STATE.timer = 40; // 制限時間40秒
     document.getElementById('huge-count').classList.add('hidden');
     
     updateGUI();
@@ -742,6 +885,7 @@ function startTurn() {
 function nextTurn() {
     clearInterval(STATE.timerInterval);
     document.getElementById('spit-overlay').classList.add('hidden');
+    if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
     STATE.turnIndex = (STATE.turnIndex + 1) % STATE.players.length;
     startTurn();
 }
@@ -770,37 +914,12 @@ function updateGUI() {
     });
 }
 
-function setViewMode(mode) {
-    if (mode === 'all') {
-        camera.position.set(0, 12, 25);
-        camera.lookAt(0, 6, 0);
-    } else if (mode === 'zoom') {
-        const targetY = (STATE.currentTier - 1) * 3 + 2;
-        camera.position.set(0, targetY, 8);
-        camera.lookAt(0, targetY, 0);
-    }
-}
-
-function cycleFace() {
-    STATE.currentFace = (STATE.currentFace % 4) + 1;
-    document.getElementById('face-num').innerText = STATE.currentFace;
-    const angle = (STATE.currentFace - 1) * (Math.PI / 2);
-    const r = 25;
-    camera.position.set(Math.sin(angle) * r, 12, Math.cos(angle) * r);
-    camera.lookAt(0, 6, 0);
-}
-
-function cycleTier() {
-    STATE.currentTier = (STATE.currentTier % 4) + 1;
-    document.getElementById('tier-num').innerText = STATE.currentTier;
-    setViewMode('zoom');
-}
-
+// タップ時の処理（短側面のみ選択可能の判定）
 window.addEventListener('pointerdown', (e) => {
     if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
 
     const rect = renderer.domElement.getBoundingClientRect();
-    if (e.clientY > rect.bottom) return;
+    if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) return;
 
     const mouse = new THREE.Vector2(
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -812,37 +931,59 @@ window.addEventListener('pointerdown', (e) => {
     const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh));
 
     if (intersects.length > 0) {
-        const targetMesh = intersects[0].object;
-        STATE.selectedBlock = blocks.find(b => b.mesh === targetMesh);
-        if (STATE.selectedBlock) {
-            startAngleSelection();
+        const hit = intersects[0];
+        const targetMesh = hit.object;
+        const blockObj = blocks.find(b => b.mesh === targetMesh);
+
+        if (blockObj) {
+            // 短側面（端の面）判定：hit.faceIndexから面を判定、またはヒットしたローカル位置のX/Z端かチェック
+            const localPoint = blockObj.mesh.worldToLocal(hit.point.clone());
+            const halfLen = blockObj.isRotated ? 1.5 : 0.5; // 長手方向の半分の長さの目安
+            const isShortSideHit = Math.abs(blockObj.isRotated ? localPoint.x : localPoint.z) >= halfLen - 0.2;
+
+            if (!isShortSideHit) {
+                showPopup("注意", "そこは押せません！棒の短側面（端っこ）をタップしてください。", "OK");
+                return;
+            }
+
+            if (!STATE.isZoomed) {
+                showPopup("注意", "ブロックを近く（近接ビュー）にしてから選択してください。（画面をダブルタップ）", "OK");
+                return;
+            }
+
+            STATE.selectedBlock = blockObj;
+            selectTargetPlayer();
         }
     }
 });
 
-function startAngleSelection() {
-    STATE.phase = 'ANGLE_H';
-    showPopup("角度選択 (1/2)", "横のストップ位置を決めます。中心の赤い〇を狙ってください！", "決定", () => {
-        STATE.phase = 'ANGLE_V';
-        showPopup("角度選択 (2/2)", "縦のストップ位置を決めます。中心の赤い〇を狙ってください！", "セットオン (SET ON)", () => {
-            triggerSetOnAnimation();
-        });
+// 誰に攻撃するかをプレイヤー名一覧から選択
+function selectTargetPlayer() {
+    STATE.phase = 'TARGET_SELECT';
+    let html = `<div class="target-select-list">`;
+    STATE.players.forEach((p, i) => {
+        if (i !== STATE.turnIndex) {
+            html += `<button class="menu-btn" onclick="confirmTarget(${i})">${p.name} (HP: ${p.hp})</button>`;
+        }
     });
+    html += `</div>`;
+    showPopup("攻撃対象選択", "攻撃するプレイヤーを選んでください：<br>" + html, "", null);
 }
 
-function triggerSetOnAnimation() {
-    let rot = 0;
-    const timer = setInterval(() => {
-        rot += 0.2;
-        camera.position.x = Math.sin(rot) * 20;
-        camera.position.z = Math.cos(rot) * 20;
-        camera.lookAt(0, 6, 0);
-    }, 30);
+window.confirmTarget = function(targetIdx) {
+    STATE.targetPlayerIndex = targetIdx;
+    closePopup();
+    startAngleSelectionH();
+};
 
-    setTimeout(() => {
-        clearInterval(timer);
-        openPowerGauge('POWER');
-    }, 1500);
+function startAngleSelectionH() {
+    STATE.phase = 'ANGLE_H';
+    openPowerGauge('ANGLE_H');
+}
+
+function startAngleSelectionV() {
+    STATE.phase = 'ANGLE_V';
+    openPowerGauge('ANGLE_V');
 }
 
 function openPowerGauge(type) {
@@ -854,11 +995,15 @@ function openPowerGauge(type) {
     STATE.gaugeSpeed = Math.random() * 3 + 2;
 
     const curP = STATE.players[STATE.turnIndex];
-    if (type === 'POWER') {
+    if (type === 'ANGLE_H') {
+        document.getElementById('gauge-owner-title').innerText = `${curP.name} の横軸角度決定`;
+    } else if (type === 'ANGLE_V') {
+        document.getElementById('gauge-owner-title').innerText = `${curP.name} の縦軸角度決定`;
+    } else if (type === 'POWER') {
         document.getElementById('gauge-owner-title').innerText = `${curP.name} の攻撃パワー！`;
-    } else {
-        const targetP = STATE.players[(STATE.turnIndex + 1) % STATE.players.length];
-        document.getElementById('gauge-owner-title').innerText = `${targetP.name} のガードポイント！`;
+    } else if (type === 'GUARD') {
+        const targetP = STATE.players[STATE.targetPlayerIndex];
+        document.getElementById('gauge-owner-title').innerText = `🛡️ ${targetP.name} のガードポイント！（他プレイヤー操作無効）`;
     }
 }
 
@@ -869,7 +1014,14 @@ function stopGauge() {
     const val = Math.floor(STATE.gaugePos);
     document.getElementById('power-gauge-overlay').classList.add('hidden');
 
-    if (STATE.phase === 'ANGLE_V' || STATE.phase === 'POWER') {
+    if (STATE.phase === 'ANGLE_H') {
+        STATE.angleHVal = val;
+        setTimeout(startAngleSelectionV, 400);
+    } else if (STATE.phase === 'ANGLE_V') {
+        STATE.angleVVal = val;
+        // 全体図表示に切り替え、横から見た想定で打ち抜く位置と角度を赤い点線で表示
+        showTrajectoryPreview();
+    } else if (STATE.phase === 'POWER') {
         STATE.powerScore = val;
         STATE.phase = 'GUARD';
         showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "相手ガード判定へ", () => {
@@ -881,10 +1033,36 @@ function stopGauge() {
     }
 }
 
+// 全体図に切り替え、横から見た想定で赤い点線で軌道・位置を表示
+function showTrajectoryPreview() {
+    STATE.isZoomed = false;
+    STATE.camAngle = 0;
+    updateCameraPosition();
+
+    if (STATE.selectedBlock) {
+        const bPos = STATE.selectedBlock.mesh.position;
+        const points = [];
+        points.push(new THREE.Vector3(bPos.x, bPos.y, bPos.z));
+        points.push(new THREE.Vector3(bPos.x + (STATE.angleHVal - 50) * 0.1, bPos.y + (STATE.angleVVal - 50) * 0.1, bPos.z - 10));
+
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.5, gapSize: 0.3 });
+        trajectoryLine = new THREE.Line(geometry, material);
+        trajectoryLine.computeLineDistances();
+        scene.add(trajectoryLine);
+    }
+
+    showPopup("軌道確認", "全体図の赤い点線が打ち抜き位置と角度です。", "攻撃パワー決定へ", () => {
+        if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
+        STATE.phase = 'POWER';
+        openPowerGauge('POWER');
+    });
+}
+
 function resolveBattleResult() {
     const diff = STATE.powerScore - STATE.guardScore;
     const turnP = STATE.players[STATE.turnIndex];
-    const targetP = STATE.players[(STATE.turnIndex + 1) % STATE.players.length];
+    const targetP = STATE.players[STATE.targetPlayerIndex];
 
     let msg = `<div class="power-impact-text">${STATE.powerScore} POWER</div>`;
     msg += `<div class="guard-impact-text">VS ${STATE.guardScore} GUARD</div><br>`;
@@ -904,7 +1082,6 @@ function resolveBattleResult() {
         msg += `<br><b style="color:#ffff00;">★ CRITICAL BREAK ★</b>`;
     }
 
-    // ★【修正ポイント3】ここで物理計算を起動し、衝撃を加える
     activatePhysics();
 
     if (STATE.selectedBlock) {
@@ -970,10 +1147,8 @@ function useItem(type) {
     }
 }
 
-// ★【修正ポイント4】判定基準の緩和（台座から落ちるか大きく傾くまで倒壊扱いしない）
 function checkCollapse() {
     for (let b of blocks) {
-        // 床に落ちるか、回転角度（傾き）が大きくなった場合のみ倒壊判定
         if (b.body.position.y < 0 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4) {
             triggerGameOver();
             break;
@@ -1001,11 +1176,16 @@ function showPopup(title, body, btnText = "OK", callback = null) {
     document.getElementById('popup-title').innerText = title;
     document.getElementById('popup-body').innerHTML = body;
     const btn = document.getElementById('popup-btn');
-    btn.innerText = btnText;
-    btn.onclick = () => {
-        overlay.classList.add('hidden');
-        if (callback) callback();
-    };
+    if (btnText === "") {
+        btn.classList.add('hidden');
+    } else {
+        btn.classList.remove('hidden');
+        btn.innerText = btnText;
+        btn.onclick = () => {
+            overlay.classList.add('hidden');
+            if (callback) callback();
+        };
+    }
     overlay.classList.remove('hidden');
 }
 
