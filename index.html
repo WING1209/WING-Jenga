@@ -361,7 +361,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタックVer1.3<br><span style="font-size:18px; color:#fff;">Online</span></div>
+        <div class="title-logo">ジェンガアタック<br><span style="font-size:18px; color:#fff;">Online </span></div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -447,6 +447,7 @@ const STATE = {
     angleHVal: 50,
     angleVVal: 50,
     roomPin: null,
+    myRoomBinId: null,
     myName: ""
 };
 
@@ -753,44 +754,7 @@ function submitName() {
     }
 }
 
-// 共通マスターBinを自動取得（または自動作成）する関数
-async function getOrCreateMasterBinId() {
-    try {
-        // アカウント内のBin一覧を取得して共有マスターBinを特定する
-        const listRes = await fetch("https://api.jsonbin.io/v3/b", {
-            method: "GET",
-            headers: {
-                "X-Master-Key": JSONBIN_API_KEY
-            }
-        });
-        
-        if (listRes.ok) {
-            const data = await listRes.json();
-            const bins = Array.isArray(data) ? data : (data.record ? [data] : []);
-            if (bins.length > 0 && bins[0].id) {
-                return bins[0].id;
-            }
-        }
-
-        // Binがまだ1つもない場合は新規作成
-        const createRes = await fetch("https://api.jsonbin.io/v3/b", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-Master-Key": JSONBIN_API_KEY,
-                "X-Bin-Private": "false"
-            },
-            body: JSON.stringify({ rooms: {} })
-        });
-        const createData = await createRes.json();
-        return createData.metadata.id;
-    } catch(e) {
-        console.error("Master Bin error", e);
-        return null;
-    }
-}
-
-// 4桁のランダム数字を生成し、マスターBinに部屋を作成（ホスト）
+// 4桁の部屋を新規作成（ホスト）
 async function createRoomWithPin() {
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
     STATE.roomPin = pin;
@@ -804,34 +768,29 @@ async function createRoomWithPin() {
     }];
     STATE.myIndex = 0;
 
-    const masterId = await getOrCreateMasterBinId();
-    if (!masterId) {
-        alert("ルーム作成に失敗しました。");
-        return;
-    }
-
     try {
-        const res = await fetch(`https://api.jsonbin.io/v3/b/${masterId}/latest`, {
-            headers: { "X-Master-Key": JSONBIN_API_KEY }
-        });
-        const data = await res.json();
-        const masterData = data.record || { rooms: {} };
-        if (!masterData.rooms) masterData.rooms = {};
-
-        masterData.rooms[pin] = {
-            players: STATE.players,
-            phase: 'LOBBY',
-            turnIndex: 0
-        };
-
-        await fetch(`https://api.jsonbin.io/v3/b/${masterId}`, {
-            method: "PUT",
+        const res = await fetch("https://api.jsonbin.io/v3/b", {
+            method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "X-Master-Key": JSONBIN_API_KEY
+                "X-Master-Key": JSONBIN_API_KEY,
+                "X-Bin-Private": "false"
             },
-            body: JSON.stringify(masterData)
+            body: JSON.stringify({
+                pin: pin,
+                players: STATE.players,
+                phase: 'LOBBY',
+                turnIndex: 0
+            })
         });
+
+        const data = await res.json();
+        if (!res.ok) {
+            alert("ルーム作成に失敗しました。");
+            return;
+        }
+
+        STATE.myRoomBinId = data.metadata.id;
 
         document.getElementById('room-id-display').innerText = `ルームID: 【 ${pin} 】`;
         document.getElementById('menu-lobby').classList.remove('hidden');
@@ -844,7 +803,7 @@ async function createRoomWithPin() {
     }
 }
 
-// 4桁IDを指定して参加（ゲスト）
+// 4桁IDを指定して参加（ゲスト：アカウント内から該当する部屋を自動検索）
 async function connectGuest() {
     const pin = document.getElementById('guest-id-input').value.trim();
     if (!pin || pin.length !== 4) {
@@ -852,27 +811,57 @@ async function connectGuest() {
         return;
     }
 
-    const masterId = await getOrCreateMasterBinId();
-    if (!masterId) {
-        alert("接続に失敗しました。");
-        return;
-    }
-
     try {
-        const res = await fetch(`https://api.jsonbin.io/v3/b/${masterId}/latest`, {
-            headers: { "X-Master-Key": JSONBIN_API_KEY }
+        // アカウント内のすべてのBinリストを取得
+        const listRes = await fetch("https://api.jsonbin.io/v3/b", {
+            method: "GET",
+            headers: {
+                "X-Master-Key": JSONBIN_API_KEY
+            }
         });
-        const data = await res.json();
-        const masterData = data.record;
 
-        if (!masterData || !masterData.rooms || !masterData.rooms[pin]) {
-            alert("指定された4桁の部屋が見つかりません。");
+        if (!listRes.ok) {
+            alert("ルームの検索に失敗しました。");
+            return;
+        }
+
+        const listData = await listRes.json();
+        const bins = Array.isArray(listData) ? listData : (listData.record ? [listData] : []);
+
+        let foundBinId = null;
+        let foundRoomData = null;
+
+        // すべてのBinを順番にチェックして、一致するPINを持つ部屋を探す
+        for (const b of bins) {
+            const binId = b.id || b.record?.id;
+            if (!binId) continue;
+
+            try {
+                const roomRes = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+                    headers: { "X-Master-Key": JSONBIN_API_KEY }
+                });
+                if (roomRes.ok) {
+                    const roomJson = await roomRes.json();
+                    const record = roomJson.record;
+                    if (record && record.pin === pin) {
+                        foundBinId = binId;
+                        foundRoomData = record;
+                        break;
+                    }
+                }
+            } catch(err) {
+                // 個別Binの読み取りエラーはスキップ
+            }
+        }
+
+        if (!foundBinId || !foundRoomData) {
+            alert("指定された4桁の部屋がみつかりません。番号を確認してください。");
             return;
         }
 
         STATE.roomPin = pin;
-        const room = masterData.rooms[pin];
-        STATE.players = room.players;
+        STATE.myRoomBinId = foundBinId;
+        STATE.players = foundRoomData.players;
 
         if (!STATE.players.some(p => p.name === STATE.myName)) {
             STATE.players.push({
@@ -884,8 +873,12 @@ async function connectGuest() {
             });
             STATE.myIndex = STATE.players.length - 1;
             
-            masterData.rooms[pin] = { players: STATE.players, phase: room.phase, turnIndex: room.turnIndex };
-            await updateMasterData(masterData);
+            await updateRoomData({
+                pin: STATE.roomPin,
+                players: STATE.players,
+                phase: foundRoomData.phase,
+                turnIndex: foundRoomData.turnIndex
+            });
         } else {
             STATE.myIndex = STATE.players.findIndex(p => p.name === STATE.myName);
         }
@@ -898,22 +891,21 @@ async function connectGuest() {
         startPolling();
         alert("ルームに接続しました！");
     } catch(e) {
-        alert("接続失敗しました。");
+        alert("接続に失敗しました。");
         console.error(e);
     }
 }
 
-async function updateMasterData(masterData) {
-    const masterId = await getOrCreateMasterBinId();
-    if (!masterId) return;
+async function updateRoomData(roomData) {
+    if (!STATE.myRoomBinId) return;
     try {
-        await fetch(`https://api.jsonbin.io/v3/b/${masterId}`, {
+        await fetch(`https://api.jsonbin.io/v3/b/${STATE.myRoomBinId}`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
                 "X-Master-Key": JSONBIN_API_KEY
             },
-            body: JSON.stringify(masterData)
+            body: JSON.stringify(roomData)
         });
     } catch(e) {
         console.error("Update error", e);
@@ -923,16 +915,15 @@ async function updateMasterData(masterData) {
 function startPolling() {
     if (pollingTimer) clearInterval(pollingTimer);
     pollingTimer = setInterval(async () => {
-        if (!STATE.roomPin) return;
+        if (!STATE.myRoomBinId) return;
         try {
-            const masterId = await getOrCreateMasterBinId();
-            const res = await fetch(`https://api.jsonbin.io/v3/b/${masterId}/latest`, {
+            const res = await fetch(`https://api.jsonbin.io/v3/b/${STATE.myRoomBinId}/latest`, {
                 headers: { "X-Master-Key": JSONBIN_API_KEY }
             });
             if (res.ok) {
                 const data = await res.json();
-                if (data.record && data.record.rooms && data.record.rooms[STATE.roomPin]) {
-                    const room = data.record.rooms[STATE.roomPin];
+                const room = data.record;
+                if (room && room.players) {
                     STATE.players = room.players;
 
                     if (STATE.mode === 'LOBBY') {
@@ -976,13 +967,12 @@ async function startOrderRoulette() {
     STATE.players.sort(() => Math.random() - 0.5);
     STATE.players.forEach(p => p.isReady = false);
     
-    const masterId = await getOrCreateMasterBinId();
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${masterId}/latest`, { headers: { "X-Master-Key": JSONBIN_API_KEY } });
-    const data = await res.json();
-    const masterData = data.record;
-    
-    masterData.rooms[STATE.roomPin] = { players: STATE.players, phase: 'CONFIRM', turnIndex: 0 };
-    await updateMasterData(masterData);
+    await updateRoomData({
+        pin: STATE.roomPin,
+        players: STATE.players,
+        phase: 'CONFIRM',
+        turnIndex: 0
+    });
 
     showPlayerConfirmationScreen();
 }
@@ -1023,25 +1013,23 @@ function showPlayerConfirmationScreen() {
 window.confirmPlayerReady = async function(index) {
     STATE.players[index].isReady = true;
     
-    const masterId = await getOrCreateMasterBinId();
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${masterId}/latest`, { headers: { "X-Master-Key": JSONBIN_API_KEY } });
-    const data = await res.json();
-    const masterData = data.record;
-    
-    masterData.rooms[STATE.roomPin] = { players: STATE.players, phase: 'CONFIRM', turnIndex: 0 };
-    await updateMasterData(masterData);
+    await updateRoomData({
+        pin: STATE.roomPin,
+        players: STATE.players,
+        phase: 'CONFIRM',
+        turnIndex: 0
+    });
 
     showPlayerConfirmationScreen();
 };
 
 async function executeGameStart() {
-    const masterId = await getOrCreateMasterBinId();
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${masterId}/latest`, { headers: { "X-Master-Key": JSONBIN_API_KEY } });
-    const data = await res.json();
-    const masterData = data.record;
-    
-    masterData.rooms[STATE.roomPin] = { players: STATE.players, phase: 'GAME', turnIndex: 0 };
-    await updateMasterData(masterData);
+    await updateRoomData({
+        pin: STATE.roomPin,
+        players: STATE.players,
+        phase: 'GAME',
+        turnIndex: 0
+    });
 
     if (pollingTimer) clearInterval(pollingTimer);
     closePopup();
