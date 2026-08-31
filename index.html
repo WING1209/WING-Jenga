@@ -322,6 +322,14 @@
             border-radius: 17px;
             overflow: hidden;
         }
+        /* 縦軸用（ANGLE_V）の縦型ゲージスタイル */
+        .gauge-bar-bg.vertical-gauge {
+            width: 40px;
+            height: 180px;
+            background: linear-gradient(to top, blue 0%, red 100%);
+            margin: 15px auto;
+            border-radius: 20px;
+        }
         .gauge-pointer {
             width: 6px;
             height: 100%;
@@ -330,6 +338,14 @@
             top: 0; left: 0%;
             box-shadow: 0 0 5px #000;
         }
+        .gauge-bar-bg.vertical-gauge .gauge-pointer {
+            width: 100%;
+            height: 6px;
+            top: auto;
+            bottom: 0%;
+            left: 0;
+        }
+
         .power-impact-text {
             font-size: 32px;
             font-weight: 900;
@@ -424,7 +440,7 @@
     </div>
 
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer3<br><span style="font-size:18px; color:#fff;">Online</span></div>
+        <div class="title-logo">ジェンガアタックVer4<br><span style="font-size:18px; color:#fff;">Online</span></div>
         <div class="blink-text">TAP TO START</div>
     </div>
 
@@ -779,8 +795,18 @@ function animate() {
         if (STATE.gaugePos >= 100 || STATE.gaugePos <= 0) {
             STATE.gaugeDir *= -1;
         }
-        document.getElementById('gauge-pointer').style.left = STATE.gaugePos + '%';
-        document.getElementById('gauge-val-display').innerText = Math.floor(STATE.gaugePos);
+        const pointer = document.getElementById('gauge-pointer');
+        const valDisp = document.getElementById('gauge-val-display');
+        const bg = document.querySelector('.gauge-bar-bg');
+        
+        if (bg.classList.contains('vertical-gauge')) {
+            pointer.style.bottom = STATE.gaugePos + '%';
+            pointer.style.top = 'auto';
+        } else {
+            pointer.style.left = STATE.gaugePos + '%';
+            pointer.style.bottom = 'auto';
+        }
+        valDisp.innerText = Math.floor(STATE.gaugePos);
     }
 
     renderer.render(scene, camera);
@@ -848,7 +874,10 @@ async function createRoomWithPin() {
                 pin: pin,
                 players: STATE.players,
                 phase: 'LOBBY',
-                turnIndex: 0
+                turnIndex: 0,
+                targetPlayerIndex: 0,
+                powerScore: 0,
+                guardScore: 0
             })
         });
 
@@ -954,7 +983,10 @@ async function connectGuest() {
                 pin: STATE.roomPin,
                 players: STATE.players,
                 phase: foundRoomData.phase,
-                turnIndex: foundRoomData.turnIndex
+                turnIndex: foundRoomData.turnIndex,
+                targetPlayerIndex: foundRoomData.targetPlayerIndex || 0,
+                powerScore: foundRoomData.powerScore || 0,
+                guardScore: foundRoomData.guardScore || 0
             });
         } else {
             STATE.myIndex = STATE.players.findIndex(p => p.name === STATE.myName);
@@ -1005,16 +1037,26 @@ function startPolling() {
 
             if (room && room.players) {
                 STATE.players = room.players;
+                if (room.phase) STATE.phase = room.phase;
+                if (room.targetPlayerIndex !== undefined) STATE.targetPlayerIndex = room.targetPlayerIndex;
+                if (room.powerScore !== undefined) STATE.powerScore = room.powerScore;
+                if (room.guardScore !== undefined) STATE.guardScore = room.guardScore;
 
                 if (STATE.mode === 'LOBBY') {
                     updateLobbyUI();
-                    
                     if (room.phase === 'SHOW_ORDER') {
                         document.getElementById('menu-screen').classList.add('hidden');
                         showOrderScreen();
                     }
                 } else if (STATE.mode === 'ORDER_CONFIRM') {
                     showOrderScreen();
+                } else if (STATE.mode === 'GAME') {
+                    // オンラインでの防御フェーズ（GUARD）移行検知
+                    if (room.phase === 'GUARD' && document.getElementById('power-gauge-overlay').classList.contains('hidden') && !STATE.gaugeRunning) {
+                        if (STATE.myIndex === STATE.targetPlayerIndex) {
+                            openPowerGauge('GUARD');
+                        }
+                    }
                 }
 
                 if (room.phase === 'GAME' && STATE.mode !== 'GAME') {
@@ -1056,7 +1098,10 @@ async function startOrderRoulette() {
         pin: STATE.roomPin,
         players: STATE.players,
         phase: 'SHOW_ORDER',
-        turnIndex: 0
+        turnIndex: 0,
+        targetPlayerIndex: 0,
+        powerScore: 0,
+        guardScore: 0
     });
 
     document.getElementById('menu-screen').classList.add('hidden');
@@ -1096,7 +1141,10 @@ async function executeGameStart() {
         pin: STATE.roomPin,
         players: STATE.players,
         phase: 'GAME',
-        turnIndex: 0
+        turnIndex: 0,
+        targetPlayerIndex: 0,
+        powerScore: 0,
+        guardScore: 0
     });
 
     if (pollingTimer) clearInterval(pollingTimer);
@@ -1235,9 +1283,18 @@ function selectTargetPlayer() {
     showPopup("攻撃対象選択", "攻撃するプレイヤーを選んでください：<br>" + html, "", null);
 }
 
-window.confirmTarget = function(targetIdx) {
+window.confirmTarget = async function(targetIdx) {
     STATE.targetPlayerIndex = targetIdx;
     closePopup();
+    
+    await updateRoomData({
+        pin: STATE.roomPin,
+        players: STATE.players,
+        phase: 'ANGLE_H',
+        turnIndex: STATE.turnIndex,
+        targetPlayerIndex: STATE.targetPlayerIndex
+    });
+
     startAngleSelectionH();
 };
 
@@ -1253,6 +1310,24 @@ function startAngleSelectionV() {
 
 function openPowerGauge(type) {
     const overlay = document.getElementById('power-gauge-overlay');
+    const bg = document.querySelector('.gauge-bar-bg');
+    
+    // 縦軸（ANGLE_V）の場合は縦型ゲージ（上下移動）にする
+    if (type === 'ANGLE_V') {
+        bg.classList.add('vertical-gauge');
+    } else {
+        bg.classList.remove('vertical-gauge');
+    }
+
+    // 防御フェーズ（GUARD）の役割分離チェック：防御プレイヤー以外はゲージを表示しない
+    if (type === 'GUARD') {
+        if (STATE.myIndex !== STATE.targetPlayerIndex) {
+            const targetP = STATE.players[STATE.targetPlayerIndex];
+            showPopup("防御フェーズ待機中", `防御プレイヤー（${targetP.name}）の防御操作を待っています...`, "", null);
+            return;
+        }
+    }
+
     overlay.classList.remove('hidden');
     
     STATE.gaugeRunning = true;
@@ -1273,10 +1348,10 @@ function openPowerGauge(type) {
     }
 }
 
-function stopGauge() {
+async function stopGauge() {
     if (!STATE.gaugeRunning) return;
     
-    // 防御フェーズでの役割分離チェック（防御プレイヤー以外はガードボタン操作不可）
+    // ガードフェーズでの操作権チェック（防御プレイヤー以外操作無効）
     if (STATE.phase === 'GUARD' && STATE.myIndex !== STATE.targetPlayerIndex) {
         alert("あなたではなく、防御プレイヤーの操作番です！");
         return;
@@ -1301,11 +1376,33 @@ function stopGauge() {
         STATE.powerScore = val;
         STATE.phase = 'GUARD';
         
+        // パワー確定後、ガードフェーズへ移行しサーバーに保存（これにより防御プレイヤー側の操作が有効化される）
+        await updateRoomData({
+            pin: STATE.roomPin,
+            players: STATE.players,
+            phase: 'GUARD',
+            turnIndex: STATE.turnIndex,
+            targetPlayerIndex: STATE.targetPlayerIndex,
+            powerScore: STATE.powerScore
+        });
+
         showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "相手ガード判定へ", () => {
             openPowerGauge('GUARD');
         });
     } else if (STATE.phase === 'GUARD') {
         STATE.guardScore = val;
+        STATE.phase = 'RESULT';
+        
+        await updateRoomData({
+            pin: STATE.roomPin,
+            players: STATE.players,
+            phase: 'RESULT',
+            turnIndex: STATE.turnIndex,
+            targetPlayerIndex: STATE.targetPlayerIndex,
+            powerScore: STATE.powerScore,
+            guardScore: STATE.guardScore
+        });
+
         resolveBattleResult();
     }
 }
@@ -1318,23 +1415,43 @@ function showTrajectoryPreview() {
     STATE.camAngle = 0;
     updateCameraPosition();
 
+    // 軌道確認時は名前や体力値などの不要なUIを非表示にする
+    document.getElementById('gui-container').classList.add('hidden');
+    document.getElementById('central-battle-status').classList.add('hidden');
+    document.getElementById('turn-banner').classList.add('hidden');
+    document.querySelectorAll('.cam-arrow').forEach(el => el.classList.add('hidden'));
+
     if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
 
     if (STATE.selectedBlock) {
         const bPos = STATE.selectedBlock.mesh.position;
-        const points = [];
-        points.push(new THREE.Vector3(bPos.x, bPos.y, bPos.z));
-        points.push(new THREE.Vector3(bPos.x + (STATE.angleHVal - 50) * 0.1, bPos.y + (STATE.angleVVal - 50) * 0.1, bPos.z - 10));
+        const startPos = new THREE.Vector3(bPos.x, bPos.y, bPos.z);
+        const endPos = new THREE.Vector3(
+            bPos.x + (STATE.angleHVal - 50) * 0.1,
+            bPos.y + (STATE.angleVVal - 50) * 0.1,
+            bPos.z - 10
+        );
 
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        // 赤の点線を太く強調（linewidthはプラットフォームによっては限界がありますが太い表現）
-        const material = new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 0.8, gapSize: 0.3, linewidth: 5 });
-        trajectoryLine = new THREE.Line(geometry, material);
-        trajectoryLine.computeLineDistances();
+        const distance = startPos.distanceTo(endPos);
+        // 太くて見やすい立体的な赤色シリンダー軌道に変更
+        const cylinderGeo = new THREE.CylinderGeometry(0.2, 0.2, distance, 16);
+        const cylinderMat = new THREE.MeshStandardMaterial({ 
+            color: 0xff0000, 
+            emissive: 0xff0000, 
+            roughness: 0.2, 
+            transparent: true, 
+            opacity: 0.85 
+        });
+        
+        trajectoryLine = new THREE.Mesh(cylinderGeo, cylinderMat);
+        trajectoryLine.position.copy(startPos).add(endPos).multiplyScalar(0.5);
+        trajectoryLine.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            new THREE.Vector3().subVectors(endPos, startPos).normalize()
+        );
         scene.add(trajectoryLine);
     }
 
-    // 軌道確認中メッセージを一時表示（ポップアップを一度非表示にして3Dタワー全体が確認できるように）
     let elapsedRot = 0;
     const rotInterval = setInterval(() => {
         elapsedRot += 0.05;
@@ -1345,7 +1462,11 @@ function showTrajectoryPreview() {
             STATE.camAngle = 0;
             updateCameraPosition();
             
-            // 1周回転したのち次のアクションに進む流れ
+            // 非表示にしていたUIを復元
+            document.getElementById('gui-container').classList.remove('hidden');
+            document.getElementById('central-battle-status').classList.remove('hidden');
+            document.querySelectorAll('.cam-arrow').forEach(el => el.classList.remove('hidden'));
+            
             showPopup("軌道確認完了", "全体図の確認が終わりました。", "攻撃パワー決定へ", () => {
                 if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
                 STATE.phase = 'POWER';
