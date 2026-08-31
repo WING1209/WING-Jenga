@@ -250,6 +250,24 @@
             pointer-events: none;
         }
 
+        #turn-banner {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            border: 3px solid #ffcc00;
+            color: #ffcc00;
+            padding: 16px 32px;
+            font-size: 26px;
+            font-weight: bold;
+            border-radius: 12px;
+            z-index: 70;
+            pointer-events: none;
+            text-shadow: 0 0 10px #ff0000;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
+        }
+
         #power-gauge-overlay {
             position: absolute;
             top: 40%; left: 50%;
@@ -338,6 +356,7 @@
         <div class="cam-arrow" id="cam-left" onclick="rotateCam(-1)">‹</div>
         <div class="cam-arrow" id="cam-right" onclick="rotateCam(1)">›</div>
         <div id="huge-count" class="hidden">40</div>
+        <div id="turn-banner" class="hidden">〇〇の番です</div>
         <div id="spit-overlay" class="hidden"></div>
     </div>
 
@@ -362,7 +381,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタックVer3.0<br><span style="font-size:18px; color:#fff;">Online ()</span></div>
+        <div class="title-logo">ジェンガアタックVer3.2<br><span style="font-size:18px; color:#fff;">Online ()</span></div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -523,13 +542,6 @@ function createEnvironment() {
         cloudGroup.position.set(Math.cos(angle) * dist, 15 + Math.random() * 10, Math.sin(angle) * dist);
         scene.add(cloudGroup);
     }
-
-    const rainbowGeo = new THREE.TorusGeometry(18, 0.4, 16, 100, Math.PI);
-    const rainbowMat = new THREE.MeshBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.4 });
-    const rainbow = new THREE.Mesh(rainbowGeo, rainbowMat);
-    rainbow.position.set(0, 10, 0);
-    rainbow.rotation.x = Math.PI / 2;
-    scene.add(rainbow);
 }
 
 function createTable(material) {
@@ -577,6 +589,13 @@ function buildJengaTower() {
             ];
 
             const mesh = new THREE.Mesh(geometry, materials);
+
+            // 黒縁取り（エッジ）の追加
+            const edgesGeo = new THREE.EdgesGeometry(geometry);
+            const edgesMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+            const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
+            mesh.add(wireframe);
+
             const posX = isRotated ? 0 : offset;
             const posY = val * blockHeight + blockHeight / 2;
             const posZ = isRotated ? offset : 0;
@@ -765,8 +784,7 @@ async function createRoomWithPin() {
         name: STATE.myName,
         hp: 100, maxHp: 100, score: 0,
         items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-        handSkin: HAND_SKINS[0],
-        isReady: false
+        handSkin: HAND_SKINS[0]
     }];
     STATE.myIndex = 0;
 
@@ -799,7 +817,7 @@ async function createRoomWithPin() {
         document.getElementById('menu-lobby').classList.remove('hidden');
         
         updateLobbyUI();
-        startPolling(); // ★ 2秒ごとの自動更新スタート
+        startPolling();
     } catch(e) {
         alert("ルーム作成エラー");
         console.error(e);
@@ -880,8 +898,7 @@ async function connectGuest() {
                 name: STATE.myName,
                 hp: 100, maxHp: 100, score: 0,
                 items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-                handSkin: HAND_SKINS[STATE.players.length % HAND_SKINS.length],
-                isReady: false
+                handSkin: HAND_SKINS[STATE.players.length % HAND_SKINS.length]
             });
             STATE.myIndex = STATE.players.length - 1;
             
@@ -900,7 +917,7 @@ async function connectGuest() {
         document.getElementById('menu-lobby').classList.remove('hidden');
 
         updateLobbyUI();
-        startPolling(); // ★ ゲスト側も自動更新スタート
+        startPolling();
         alert("ルームに接続しました！");
     } catch(e) {
         alert("接続に失敗しました。");
@@ -924,11 +941,8 @@ async function updateRoomData(roomData) {
     }
 }
 
-// ★ 2秒ごとの自動更新処理（ポーリング）の決定版
 function startPolling() {
     if (pollingTimer) clearInterval(pollingTimer);
-    
-    console.log("🔄 ポーリング開始 (BinID:", STATE.myRoomBinId, ")");
     
     pollingTimer = setInterval(async () => {
         if (!STATE.myRoomBinId) return;
@@ -944,25 +958,28 @@ function startPolling() {
             if (room && room.players) {
                 STATE.players = room.players;
 
-                // ロビー画面での処理
                 if (STATE.mode === 'LOBBY') {
                     updateLobbyUI();
                     
-                    // ホストがゲーム開始（CONFIRMまたはGAME）に遷移させた場合
-                    if (room.phase === 'CONFIRM' && STATE.mode === 'LOBBY') {
-                        // ポップアップが開いていない、かつゲスト側の場合などに順番確認画面を表示
-                        // 必要に応じて自動遷移
+                    if (room.phase === 'SHOW_ORDER') {
+                        document.getElementById('menu-screen').classList.add('hidden');
+                        showOrderScreen();
                     }
-                    if (room.phase === 'GAME' && STATE.mode !== 'GAME') {
-                        clearInterval(pollingTimer);
-                        startGame();
-                    }
+                } else if (STATE.mode === 'ORDER_CONFIRM') {
+                    // ゲスト側でも一覧表を最新に更新
+                    showOrderScreen();
+                }
+
+                if (room.phase === 'GAME' && STATE.mode !== 'GAME') {
+                    clearInterval(pollingTimer);
+                    closePopup();
+                    startGame();
                 }
             }
         } catch(e) {
             console.error("Polling error", e);
         }
-    }, 2000); // 2000ms = 2秒ごと
+    }, 2000);
 }
 
 function updateLobbyUI() {
@@ -986,66 +1003,46 @@ function updateLobbyUI() {
 }
 
 async function startOrderRoulette() {
-    document.getElementById('menu-screen').classList.add('hidden');
-    
     STATE.players.sort(() => Math.random() - 0.5);
-    STATE.players.forEach(p => p.isReady = false);
     
     await updateRoomData({
         pin: STATE.roomPin,
         players: STATE.players,
-        phase: 'CONFIRM',
+        phase: 'SHOW_ORDER',
         turnIndex: 0
     });
 
-    showPlayerConfirmationScreen();
+    document.getElementById('menu-screen').classList.add('hidden');
+    showOrderScreen();
 }
 
-function showPlayerConfirmationScreen() {
-    document.getElementById('popup-title').innerText = "決定した順番の確認";
+function showOrderScreen() {
+    STATE.mode = 'ORDER_CONFIRM';
+    document.getElementById('popup-title').innerText = "決定した順番一覧表";
     
-    let html = `<div style="font-size:11px; margin-bottom:8px; color:#aaa;">自分の名前のボタンを押して確認を完了してください：</div>`;
-    html += `<div style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; text-align:left;">`;
+    let html = `<div style="font-size:12px; margin-bottom:12px; color:#aaa;">ゲームの順番が決定しました：</div>`;
+    html += `<div style="display:flex; flex-direction:column; gap:6px; max-height:200px; overflow-y:auto; text-align:left;">`;
     
     STATE.players.forEach((p, i) => {
-        const btnBg = p.isReady ? '#006600' : '#444';
-        const btnText = p.isReady ? '✅ 確認済み' : '👉 確認する';
-        html += `<div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:6px 10px; border-radius:4px;">
-            <span><b>${i + 1}番:</b> ${p.name}</span>
-            <button class="menu-btn" style="padding:4px 10px; font-size:11px; background:${btnBg};" onclick="confirmPlayerReady(${i})">${btnText}</button>
+        html += `<div style="background:#333; padding:8px 12px; border-radius:6px; font-size:14px;">
+            <b>${i + 1}番:</b> ${p.name}
         </div>`;
     });
-    html += `</div>`;
+    html += `</div><br>`;
 
-    const allReady = STATE.players.every(p => p.isReady);
     const btn = document.getElementById('popup-btn');
 
-    if (allReady && STATE.isHost) {
-        html += `<br><button class="menu-btn" style="background:#ff3333; width:100%;" onclick="executeGameStart()">全員確認完了 - ゲームスタート！</button>`;
+    if (STATE.isHost) {
+        html += `<button class="menu-btn" style="background:#ff3333; width:100%;" onclick="executeGameStart()">ゲームスタート！</button>`;
         btn.classList.add('hidden');
     } else {
         btn.classList.add('hidden');
-        if (!STATE.isHost && allReady) {
-            html += `<br><div style="color:#ffcc00; font-size:12px; text-align:center;">ホストのゲーム開始をお待ちください...</div>`;
-        }
+        html += `<div style="color:#ffcc00; font-size:13px; text-align:center;">ホストのゲーム開始をお待ちください...</div>`;
     }
 
     document.getElementById('popup-body').innerHTML = html;
     document.getElementById('popup-overlay').classList.remove('hidden');
 }
-
-window.confirmPlayerReady = async function(index) {
-    STATE.players[index].isReady = true;
-    
-    await updateRoomData({
-        pin: STATE.roomPin,
-        players: STATE.players,
-        phase: 'CONFIRM',
-        turnIndex: 0
-    });
-
-    showPlayerConfirmationScreen();
-};
 
 async function executeGameStart() {
     await updateRoomData({
@@ -1076,6 +1073,15 @@ function startTurn() {
     document.getElementById('huge-count').classList.add('hidden');
     
     updateGUI();
+
+    // ターン開始中央バナー表示
+    const curP = STATE.players[STATE.turnIndex];
+    const banner = document.getElementById('turn-banner');
+    banner.innerText = `${curP.name} の番です`;
+    banner.classList.remove('hidden');
+    setTimeout(() => {
+        banner.classList.add('hidden');
+    }, 1800);
 
     if (STATE.timerInterval) clearInterval(STATE.timerInterval);
     STATE.timerInterval = setInterval(() => {
@@ -1141,28 +1147,14 @@ window.addEventListener('pointerdown', (e) => {
 
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh));
+    const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh), true);
 
     if (intersects.length > 0) {
         const hit = intersects[0];
         const targetMesh = hit.object;
-        const blockObj = blocks.find(b => b.mesh === targetMesh);
+        const blockObj = blocks.find(b => b.mesh === targetMesh || b.mesh.children.includes(targetMesh));
 
         if (blockObj) {
-            const localPoint = blockObj.mesh.worldToLocal(hit.point.clone());
-            const halfLen = blockObj.isRotated ? 1.5 : 0.5;
-            const isShortSideHit = Math.abs(blockObj.isRotated ? localPoint.x : localPoint.z) >= halfLen - 0.2;
-
-            if (!isShortSideHit) {
-                showPopup("注意", "そこは押せません！棒の短側面（端っこ）をタップしてください。", "OK");
-                return;
-            }
-
-            if (!STATE.isZoomed) {
-                showPopup("注意", "ブロックを近く（近接ビュー）にしてから選択してください。（画面をダブルタップ）", "OK");
-                return;
-            }
-
             STATE.selectedBlock = blockObj;
             selectTargetPlayer();
         }
@@ -1366,7 +1358,7 @@ function showPopup(title, body, btnText = "OK", callback = null) {
             if (callback) callback();
         };
     }
-    overlay.classList.add('hidden');
+    overlay.classList.remove('hidden');
 }
 
 function closePopup() {
