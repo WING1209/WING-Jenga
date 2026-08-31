@@ -362,7 +362,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタック<br><span style="font-size:18px; color:#fff;">Online </span></div>
+        <div class="title-logo">ジェンガアタックVer3.0<br><span style="font-size:18px; color:#fff;">Online ()</span></div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -759,6 +759,7 @@ function submitName() {
 async function createRoomWithPin() {
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
     STATE.roomPin = pin;
+    STATE.mode = 'LOBBY';
 
     STATE.players = [{
         name: STATE.myName,
@@ -785,12 +786,12 @@ async function createRoomWithPin() {
             })
         });
 
-        const data = await res.json();
         if (!res.ok) {
             alert("ルーム作成に失敗しました。");
             return;
         }
 
+        const data = await res.json();
         STATE.myRoomBinId = data.metadata.id;
         await registerToMasterBoard(pin, STATE.myRoomBinId);
 
@@ -798,7 +799,7 @@ async function createRoomWithPin() {
         document.getElementById('menu-lobby').classList.remove('hidden');
         
         updateLobbyUI();
-        startPolling();
+        startPolling(); // ★ 2秒ごとの自動更新スタート
     } catch(e) {
         alert("ルーム作成エラー");
         console.error(e);
@@ -839,13 +840,12 @@ async function connectGuest() {
     }
 
     try {
-        // ▼ キャッシュ対策追加
         const boardRes = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}/latest?_=${Date.now()}`, {
             headers: { "X-Master-Key": JSONBIN_API_KEY }
         });
 
         if (!boardRes.ok) {
-            alert("ルームの検索に失敗しました（掲示板に接続できません）。");
+            alert("ルームの検索に失敗しました。");
             return;
         }
 
@@ -854,11 +854,10 @@ async function connectGuest() {
         const targetBinId = boardRooms[pin];
 
         if (!targetBinId) {
-            alert("指定された4桁の部屋がみつかりません。番号を確認するか、ホストが部屋を開いているか確認してください。");
+            alert("指定された4桁の部屋がみつかりません。");
             return;
         }
 
-        // ▼ キャッシュ対策追加
         const roomRes = await fetch(`https://api.jsonbin.io/v3/b/${targetBinId}/latest?_=${Date.now()}`, {
             headers: { "X-Master-Key": JSONBIN_API_KEY }
         });
@@ -873,7 +872,8 @@ async function connectGuest() {
 
         STATE.roomPin = pin;
         STATE.myRoomBinId = targetBinId;
-        STATE.players = foundRoomData.players;
+        STATE.mode = 'LOBBY';
+        STATE.players = foundRoomData.players || [];
 
         if (!STATE.players.some(p => p.name === STATE.myName)) {
             STATE.players.push({
@@ -900,7 +900,7 @@ async function connectGuest() {
         document.getElementById('menu-lobby').classList.remove('hidden');
 
         updateLobbyUI();
-        startPolling();
+        startPolling(); // ★ ゲスト側も自動更新スタート
         alert("ルームに接続しました！");
     } catch(e) {
         alert("接続に失敗しました。");
@@ -924,34 +924,45 @@ async function updateRoomData(roomData) {
     }
 }
 
+// ★ 2秒ごとの自動更新処理（ポーリング）の決定版
 function startPolling() {
     if (pollingTimer) clearInterval(pollingTimer);
+    
+    console.log("🔄 ポーリング開始 (BinID:", STATE.myRoomBinId, ")");
+    
     pollingTimer = setInterval(async () => {
         if (!STATE.myRoomBinId) return;
         try {
-            // ▼ キャッシュ対策追加
             const res = await fetch(`https://api.jsonbin.io/v3/b/${STATE.myRoomBinId}/latest?_=${Date.now()}`, {
                 headers: { "X-Master-Key": JSONBIN_API_KEY }
             });
-            if (res.ok) {
-                const data = await res.json();
-                const room = data.record;
-                if (room && room.players) {
-                    STATE.players = room.players;
+            if (!res.ok) return;
 
-                    if (STATE.mode === 'LOBBY') {
-                        updateLobbyUI();
-                        if (room.phase === 'GAME' && STATE.mode !== 'GAME') {
-                            clearInterval(pollingTimer);
-                            startGame();
-                        }
+            const data = await res.json();
+            const room = data.record || data;
+
+            if (room && room.players) {
+                STATE.players = room.players;
+
+                // ロビー画面での処理
+                if (STATE.mode === 'LOBBY') {
+                    updateLobbyUI();
+                    
+                    // ホストがゲーム開始（CONFIRMまたはGAME）に遷移させた場合
+                    if (room.phase === 'CONFIRM' && STATE.mode === 'LOBBY') {
+                        // ポップアップが開いていない、かつゲスト側の場合などに順番確認画面を表示
+                        // 必要に応じて自動遷移
+                    }
+                    if (room.phase === 'GAME' && STATE.mode !== 'GAME') {
+                        clearInterval(pollingTimer);
+                        startGame();
                     }
                 }
             }
         } catch(e) {
             console.error("Polling error", e);
         }
-    }, 3000);
+    }, 2000); // 2000ms = 2秒ごと
 }
 
 function updateLobbyUI() {
@@ -1355,7 +1366,7 @@ function showPopup(title, body, btnText = "OK", callback = null) {
             if (callback) callback();
         };
     }
-    overlay.classList.remove('hidden');
+    overlay.classList.add('hidden');
 }
 
 function closePopup() {
