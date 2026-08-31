@@ -362,7 +362,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタックVer2.0<br><span style="font-size:18px; color:#fff;">Online </span></div>
+        <div class="title-logo">ジェンガアタック<br><span style="font-size:18px; color:#fff;">Online </span></div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -423,7 +423,6 @@
 
 <script>
 const JSONBIN_API_KEY = "$2a$10$p.cJHnRnt3oBn8Mtny/WpOekHU3EyeeZj0MUaHY2sDWoFNV1wjIN.";
-// あなたが作成した共通掲示板のBin IDを設定済み
 const MASTER_BOARD_BIN_ID = "6a954f24f5f4af5e29572441";
 
 const STATE = {
@@ -809,7 +808,7 @@ async function createRoomWithPin() {
 async function registerToMasterBoard(pin, binId) {
     try {
         let boardRooms = {};
-        const getRes = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}/latest`, {
+        const getRes = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}/latest?_=${Date.now()}`, {
             headers: { "X-Master-Key": JSONBIN_API_KEY }
         });
         if (getRes.ok) {
@@ -840,7 +839,8 @@ async function connectGuest() {
     }
 
     try {
-        const boardRes = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}/latest`, {
+        // ▼ キャッシュ対策追加
+        const boardRes = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}/latest?_=${Date.now()}`, {
             headers: { "X-Master-Key": JSONBIN_API_KEY }
         });
 
@@ -858,7 +858,8 @@ async function connectGuest() {
             return;
         }
 
-        const roomRes = await fetch(`https://api.jsonbin.io/v3/b/${targetBinId}/latest`, {
+        // ▼ キャッシュ対策追加
+        const roomRes = await fetch(`https://api.jsonbin.io/v3/b/${targetBinId}/latest?_=${Date.now()}`, {
             headers: { "X-Master-Key": JSONBIN_API_KEY }
         });
 
@@ -928,7 +929,8 @@ function startPolling() {
     pollingTimer = setInterval(async () => {
         if (!STATE.myRoomBinId) return;
         try {
-            const res = await fetch(`https://api.jsonbin.io/v3/b/${STATE.myRoomBinId}/latest`, {
+            // ▼ キャッシュ対策追加
+            const res = await fetch(`https://api.jsonbin.io/v3/b/${STATE.myRoomBinId}/latest?_=${Date.now()}`, {
                 headers: { "X-Master-Key": JSONBIN_API_KEY }
             });
             if (res.ok) {
