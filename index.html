@@ -361,7 +361,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタックVer1.0</div>
+        <div class="title-logo">ジェンガアタックVer1.2</div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -373,6 +373,7 @@
             <button class="menu-btn" onclick="location.reload()">３．終了</button>
         </div>
 
+        <!-- ホスト：人数選択 -->
         <div class="menu-box hidden" id="menu-host">
             <h3>人数選択</h3>
             <div style="display:flex; gap:5px; justify-content:center;">
@@ -384,6 +385,7 @@
             </div>
         </div>
 
+        <!-- プレイヤーネーム入力 -->
         <div class="menu-box hidden" id="menu-name">
             <h3>プレイヤーネーム</h3>
             <p style="font-size:11px; color:#aaa;">(ひらがな・数字 6文字まで)</p>
@@ -391,17 +393,20 @@
             <button class="menu-btn" onclick="submitName()">決定</button>
         </div>
 
-        <div class="menu-box hidden" id="menu-lobby">
-            <h3>接続待機中...</h3>
-            <div class="blink-text" style="font-size:24px;" id="room-id-display">ID: ----</div>
-            <div id="joined-players-list" style="text-align:left; font-size:12px; margin:10px 0;"></div>
-            <button class="menu-btn hidden" id="btn-start-game" onclick="startOrderRoulette()">ゲーム開始</button>
-        </div>
-
+        <!-- ゲスト：接続ID入力 -->
         <div class="menu-box hidden" id="menu-guest-id">
             <h3>接続ID入力 (4桁)</h3>
             <input type="text" id="guest-id-input" maxlength="4" placeholder="1234">
             <button class="menu-btn" onclick="connectGuest()">接続</button>
+        </div>
+
+        <!-- ロビー待機画面（ホスト・ゲスト共通） -->
+        <div class="menu-box hidden" id="menu-lobby">
+            <h3>接続待機中...</h3>
+            <div class="blink-text" style="font-size:24px;" id="room-id-display">ID: ----</div>
+            <div id="joined-players-list" style="text-align:left; font-size:12px; margin:10px 0; max-height:120px; overflow-y:auto;"></div>
+            <div id="lobby-waiting-msg" style="font-size:12px; color:#ffcc00;">プレイヤーの参加を待っています...</div>
+            <button class="menu-btn hidden" id="btn-start-roulette" onclick="startOrderRoulette()">順番決めルーレット開始</button>
         </div>
     </div>
 
@@ -451,7 +456,8 @@ const STATE = {
     physicsActive: false,
     targetPlayerIndex: 0,
     angleHVal: 50,
-    angleVVal: 50
+    angleVVal: 50,
+    roomId: null
 };
 
 const HAND_SKINS = [
@@ -743,6 +749,7 @@ function setPlayerCount(num) {
     document.getElementById('menu-name').classList.remove('hidden');
 }
 
+// プレイヤー名決定後の処理
 function submitName() {
     const input = document.getElementById('player-name-input').value.trim();
     const regex = /^[ぁ-んー0-9]+$/;
@@ -752,7 +759,8 @@ function submitName() {
         return;
     }
 
-    const myHand = HAND_SKINS[Math.floor(Math.random() * HAND_SKINS.length)];
+    const myHand = HAND_SKINS[0];
+    // 自分をプレイヤーリストに追加
     STATE.players.push({
         name: input,
         hp: 100,
@@ -762,51 +770,90 @@ function submitName() {
         handSkin: myHand,
         isReady: false
     });
+    STATE.myIndex = 0;
 
     document.getElementById('menu-name').classList.add('hidden');
 
     if (STATE.isHost) {
+        // ホストの場合：IDを発行してロビー待機画面へ
+        STATE.roomId = Math.floor(1000 + Math.random() * 9000);
+        document.getElementById('room-id-display').innerText = `ID: ${STATE.roomId}`;
         document.getElementById('menu-lobby').classList.remove('hidden');
-        const roomId = Math.floor(1000 + Math.random() * 9000);
-        document.getElementById('room-id-display').innerText = `ID: ${roomId}`;
         
-        for (let i = 2; i <= STATE.playerCount; i++) {
-            STATE.players.push({
-                name: `つわもの${i}`,
-                hp: 100, maxHp: 100, score: 0,
-                items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-                handSkin: HAND_SKINS[(i-1) % HAND_SKINS.length],
-                isReady: false
-            });
-        }
+        // オフライン・モック用としてCPU/参加者を自動埋め込み（またはゲスト参加待ち）
         updateLobbyUI();
     } else {
+        // ゲストの場合：ID入力画面へ
         document.getElementById('menu-guest-id').classList.remove('hidden');
     }
 }
 
-function updateLobbyUI() {
-    const list = document.getElementById('joined-players-list');
-    list.innerHTML = "<b>参加プレイヤー:</b><br>" + STATE.players.map(p => `・${p.name}`).join('<br>');
-    if (STATE.players.length >= STATE.playerCount) {
-        document.getElementById('btn-start-game').classList.remove('hidden');
-    }
-}
-
+// ゲストがIDを入力して接続する処理
 function connectGuest() {
-    const id = document.getElementById('guest-id-input').value;
+    const id = document.getElementById('guest-id-input').value.trim();
     if (id.length === 4) {
-        document.getElementById('menu-guest-id').innerHTML = "<h3>接続成功！</h3><p>ホストの開始を待っています...</p>";
-        setTimeout(() => {
-            STATE.players.unshift({ name: "ホスト", hp: 100, maxHp: 100, score: 0, items:{}, handSkin: HAND_SKINS[0], isReady: false });
-            startOrderRoulette();
-        }, 1500);
+        STATE.roomId = id;
+        document.getElementById('menu-guest-id').classList.add('hidden');
+        document.getElementById('room-id-display').innerText = `ID: ${STATE.roomId}`;
+        document.getElementById('menu-lobby').classList.remove('hidden');
+        
+        // ゲスト視点：ホストや他のプレイヤーを擬似的に追加してロビーに参加
+        if (STATE.players.length < 2) {
+            STATE.players.unshift({
+                name: "ホスト",
+                hp: 100, maxHp: 100, score: 0,
+                items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
+                handSkin: HAND_SKINS[1],
+                isReady: false
+            });
+        }
+        updateLobbyUI();
+        alert("ホストへの接続に成功しました！");
     } else {
         alert("4桁のIDを入力してください");
     }
 }
 
-// 順番決めルーレット（ホストのみストップ操作可能）
+// ロビー画面のUI更新（参加プレイヤーの名前を順次表示・規定人数でボタン出現）
+function updateLobbyUI() {
+    const list = document.getElementById('joined-players-list');
+    list.innerHTML = "<b>参加者一覧:</b><br>" + STATE.players.map(p => `・${p.name}`).join('<br>');
+    
+    // モックアップとして、ホスト画面でプレイヤー人数が足りない場合にCPUを自動追加してテストできるようにする
+    if (STATE.isHost && STATE.players.length < STATE.playerCount) {
+        // デモ用に自動で参加者を増やす処理（ボタンまたは自動）
+        setTimeout(() => {
+            if (STATE.players.length < STATE.playerCount) {
+                const nextId = STATE.players.length + 1;
+                STATE.players.push({
+                    name: `プレイヤー${nextId}`,
+                    hp: 100, maxHp: 100, score: 0,
+                    items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
+                    handSkin: HAND_SKINS[(nextId-1) % HAND_SKINS.length],
+                    isReady: false
+                });
+                updateLobbyUI();
+            }
+        }, 1000);
+    }
+
+    const waitingMsg = document.getElementById('lobby-waiting-msg');
+    const startBtn = document.getElementById('btn-start-roulette');
+
+    if (STATE.players.length >= STATE.playerCount) {
+        waitingMsg.innerText = "規定人数に達しました！";
+        if (STATE.isHost) {
+            startBtn.classList.remove('hidden'); // ホストのみルーレット開始ボタンが出現
+        } else {
+            waitingMsg.innerText += " ホストがゲームを開始するのを待っています...";
+        }
+    } else {
+        waitingMsg.innerText = `接続待ち... (${STATE.players.length}/${STATE.playerCount}人)`;
+        startBtn.classList.add('hidden');
+    }
+}
+
+// 1. 順番決めルーレット開始（全員にルーレット回転を表示）
 function startOrderRoulette() {
     document.getElementById('menu-screen').classList.add('hidden');
     
@@ -817,45 +864,48 @@ function startOrderRoulette() {
     
     document.getElementById('popup-title').innerText = "順番決めルーレット";
     
-    const timer = setInterval(() => {
+    const rouletteTimer = setInterval(() => {
         document.getElementById('popup-body').innerText = `▶ ${STATE.players[idx % STATE.players.length].name} ◀`;
         idx++;
     }, speed);
 
     const btn = document.getElementById('popup-btn');
     if (STATE.isHost) {
-        btn.innerText = "ストップ！（ホスト操作）";
+        btn.innerText = "ストップ！（ホストのみ停止可能）";
         btn.classList.remove('hidden');
+        // ホストのみがタップで停止させる
         btn.onclick = () => {
-            clearInterval(timer);
+            clearInterval(rouletteTimer);
             stopRouletteResult();
         };
     } else {
         btn.innerText = "ホストがルーレットを停止するのを待っています...";
-        btn.classList.add('hidden'); // ゲストは停止ボタンを押せない
+        btn.classList.add('hidden');
     }
 }
 
+// ルーレット停止後の処理
 function stopRouletteResult() {
     document.getElementById('app-container').classList.add('shake');
     setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 500);
 
+    // シャッフルして順番を決定
     STATE.players.sort(() => Math.random() - 0.5);
-    STATE.players.forEach(p => p.isReady = false); // 確認状態リセット
+    STATE.players.forEach(p => p.isReady = false); // 準備状態リセット
     
     showPlayerConfirmationScreen();
 }
 
-// 各プレイヤーが確認タップして準備する画面
+// 2. 順番の一覧表示と各プレイヤーの確認ボタン
 function showPlayerConfirmationScreen() {
-    document.getElementById('popup-title').innerText = "順番確認 & 準備";
+    document.getElementById('popup-title').innerText = "決定した順番の確認";
     
-    let html = `<div style="font-size:12px; margin-bottom:8px; color:#aaa;">各プレイヤーは自分の名前をタップして準備を完了してください：</div>`;
+    let html = `<div style="font-size:12px; margin-bottom:8px; color:#aaa;">各プレイヤーは自分の名前のボタンを押して確認を完了してください：</div>`;
     html += `<div style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; text-align:left;">`;
     
     STATE.players.forEach((p, i) => {
         const btnBg = p.isReady ? '#006600' : '#444';
-        const btnText = p.isReady ? '✅ 準備完了' : '👉 タップして確認';
+        const btnText = p.isReady ? '✅ 確認済み' : '👉 確認する';
         html += `<div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:6px 10px; border-radius:4px;">
             <span><b>${i + 1}番:</b> ${p.name}</span>
             <button class="menu-btn" style="padding:4px 10px; font-size:11px; background:${btnBg};" onclick="confirmPlayerReady(${i})">${btnText}</button>
@@ -867,14 +917,15 @@ function showPlayerConfirmationScreen() {
     const btn = document.getElementById('popup-btn');
 
     if (allReady && STATE.isHost) {
-        html += `<br><button class="menu-btn" style="background:#ff3333; width:100%;" onclick="executeGameStart()">全プレイヤー準備完了 - ゲーム開始</button>`;
+        // 3. 全プレイヤーの確認が終わったら、ホストのみにゲーム開始ボタンが出現
+        html += `<br><button class="menu-btn" style="background:#ff3333; width:100%;" onclick="executeGameStart()">全プレイヤー確認完了 - ゲームスタート！</button>`;
         btn.classList.add('hidden');
     } else {
         btn.classList.add('hidden');
         if (!STATE.isHost && allReady) {
-            html += `<br><div style="color:#ffcc00; font-size:12px; text-align:center;">ホストのゲーム開始ボタンをお待ちください...</div>`;
+            html += `<br><div style="color:#ffcc00; font-size:12px; text-align:center;">ホストのゲーム開始をお待ちください...</div>`;
         } else if (!allReady) {
-            html += `<br><div style="color:#aaa; font-size:11px; text-align:center;">全員の確認が完了するとホストに開始ボタンが表示されます。</div>`;
+            html += `<br><div style="color:#aaa; font-size:11px; text-align:center;">全員が確認ボタンを押すとホストに開始ボタンが現れます。</div>`;
         }
     }
 
@@ -887,6 +938,7 @@ window.confirmPlayerReady = function(index) {
     showPlayerConfirmationScreen();
 };
 
+// 4. ホストがゲーム開始ボタンをタップし、全員一斉にゲームスタート
 function executeGameStart() {
     closePopup();
     startGame();
@@ -957,11 +1009,10 @@ function updateGUI() {
     });
 }
 
-// ブロック選択タップ判定（ターンプレイヤーのみ操作可能）
+// ブロック選択タップ判定
 window.addEventListener('pointerdown', (e) => {
     if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
 
-    // パス＆プレイ環境においてターンのプレイヤーの手番であることを確認
     const rect = renderer.domElement.getBoundingClientRect();
     if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) return;
 
@@ -1046,7 +1097,6 @@ function openPowerGauge(type) {
     } else if (type === 'POWER') {
         document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】攻撃パワー決定`;
     } else if (type === 'GUARD') {
-        // 防御時：対象プレイヤーのみが操作可能であることを明示
         document.getElementById('gauge-owner-title').innerText = `🛡️ 【${targetP.name}の防御ターン】防御ゲージをストップ！`;
     }
 }
@@ -1054,9 +1104,7 @@ function openPowerGauge(type) {
 function stopGauge() {
     if (!STATE.gaugeRunning) return;
     
-    // アクションの切り分け：GUARDフェーズのときは対象プレイヤーのみがストップ操作を行える
     STATE.gaugeRunning = false;
-    
     const val = Math.floor(STATE.gaugePos);
     document.getElementById('power-gauge-overlay').classList.add('hidden');
 
