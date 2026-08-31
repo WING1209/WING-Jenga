@@ -452,13 +452,13 @@
         </div>
 
         <div class="controls-info">
-            💡 左右矢印: 回転 | 上下矢印: 高さ移動 | ダブルタップ: 近接/全体
+            💡 左右矢印: 回転 | 上下矢印: 高さ移動 | タップ: ブロック決定 / 近接切り替え
         </div>
     </div>
 
     <!-- タイトル画面 -->
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer1.0</div>
+        <div class="title-logo">ジェンガアタックVer1.2</div>
         <div class="blink-text">スタート</div>
     </div>
 
@@ -770,12 +770,10 @@ function rotateCam(dir) {
     updateCameraPosition();
 }
 
-/* --- タッチ/ポインター制御（修正版：ボタン長押しで上下移動、スワイプ干渉を除去） --- */
-let lastTapTime = 0;
+/* --- タッチ/ポインター制御（修正版：タップ感度の安定化と不具合修正） --- */
 let touchStartX = 0;
 let touchStartY = 0;
 let touchStartTime = 0;
-let singleTapTimeout = null;
 let heightMoveInterval = null;
 
 function moveCamHeight(dir) {
@@ -801,7 +799,6 @@ function stopHeightMove() {
 function initTouchControls() {
     const container = document.getElementById('canvas-container');
 
-    // 上下ボタンの押下イベント登録
     const btnUp = document.getElementById('cam-up');
     const btnDown = document.getElementById('cam-down');
 
@@ -825,24 +822,9 @@ function initTouchControls() {
         const elapsed = Date.now() - touchStartTime;
         const dist = Math.hypot(clientX - touchStartX, clientY - touchStartY);
 
-        // タップ判定 (移動距離が小さい場合のみ)
-        if (elapsed < 350 && dist < 15) {
-            const now = Date.now();
-            if (now - lastTapTime < 300) {
-                if (singleTapTimeout) {
-                    clearTimeout(singleTapTimeout);
-                    singleTapTimeout = null;
-                }
-                STATE.isZoomed = !STATE.isZoomed;
-                updateCameraPosition();
-                lastTapTime = 0;
-            } else {
-                lastTapTime = now;
-                singleTapTimeout = setTimeout(() => {
-                    handleBlockSelection(clientX, clientY);
-                    singleTapTimeout = null;
-                }, 250);
-            }
+        // タップ判定（許容移動幅を30pxまで緩和）
+        if (elapsed < 400 && dist < 30) {
+            handleBlockSelection(clientX, clientY);
         }
     };
 
@@ -881,6 +863,10 @@ function handleBlockSelection(clientX, clientY) {
             STATE.selectedBlockId = blockObj.id;
             showJengaConfirmPopup(blockObj);
         }
+    } else {
+        // 空白部分タップ時はズーム切り替え
+        STATE.isZoomed = !STATE.isZoomed;
+        updateCameraPosition();
     }
 }
 
@@ -1230,7 +1216,14 @@ function startPolling() {
                         processedPhase = serverPhase;
                         STATE.phase = serverPhase;
 
-                        if (serverPhase === 'GUARD') {
+                        if (serverPhase === 'ANGLE_H' || serverPhase === 'ANGLE_V' || serverPhase === 'POWER') {
+                            if (STATE.myIndex === STATE.turnIndex) {
+                                openPowerGauge(serverPhase);
+                            } else {
+                                const atkP = STATE.players[STATE.turnIndex];
+                                showPleaseWaitPopup(`⚔️ ${atkP ? atkP.name : '攻撃プレイヤー'} の操作を待っています...`);
+                            }
+                        } else if (serverPhase === 'GUARD') {
                             if (STATE.myIndex === STATE.targetPlayerIndex) {
                                 openPowerGauge('GUARD');
                             } else {
@@ -1562,9 +1555,9 @@ function openPowerGauge(type) {
     const targetP = STATE.players[targetIdx] || curP;
 
     if (type === 'ANGLE_H') {
-        document.getElementById('gauge-owner-title').innerText = `【${curP ? curP.name : ''}のターン】横軸角度決定`;
+        document.getElementById('gauge-owner-title').innerText = `【${curP ? curP.name : ''}のターン】横軸角度(X軸)決定`;
     } else if (type === 'ANGLE_V') {
-        document.getElementById('gauge-owner-title').innerText = `【${curP ? curP.name : ''}のターン】縦軸角度決定`;
+        document.getElementById('gauge-owner-title').innerText = `【${curP ? curP.name : ''}のターン】縦軸角度(Y軸)決定`;
     } else if (type === 'POWER') {
         document.getElementById('gauge-owner-title').innerText = `【${curP ? curP.name : ''}のターン】攻撃パワー決定`;
     } else if (type === 'GUARD') {
@@ -1575,13 +1568,17 @@ function openPowerGauge(type) {
 async function stopGauge() {
     if (!STATE.gaugeRunning) return;
     
-    if (STATE.phase === 'GUARD' && STATE.myIndex !== STATE.targetPlayerIndex) {
-        alert("あなたではなく、防御プレイヤーの操作番です！");
-        return;
-    }
-    if (STATE.phase !== 'GUARD' && STATE.turnIndex !== STATE.myIndex) {
-        alert("あなたのターンではありません！");
-        return;
+    // 権限チェック：防御フェーズは防御対象者のみ、それ以外は攻撃者のみ操作可能
+    if (STATE.phase === 'GUARD') {
+        if (STATE.myIndex !== STATE.targetPlayerIndex) {
+            alert("あなたではなく、防御プレイヤーの操作番です！");
+            return;
+        }
+    } else {
+        if (STATE.turnIndex !== STATE.myIndex) {
+            alert("あなたのターンではありません！");
+            return;
+        }
     }
 
     STATE.gaugeRunning = false;
@@ -1590,10 +1587,18 @@ async function stopGauge() {
 
     if (STATE.phase === 'ANGLE_H') {
         STATE.angleHVal = val;
+        STATE.phase = 'ANGLE_V';
+        processedPhase = 'ANGLE_V';
+        await updateRoomData({
+            pin: STATE.roomPin,
+            phase: 'ANGLE_V'
+        });
         setTimeout(startAngleSelectionV, 400);
+
     } else if (STATE.phase === 'ANGLE_V') {
         STATE.angleVVal = val;
         showTrajectoryPreview();
+
     } else if (STATE.phase === 'POWER') {
         STATE.powerScore = val;
         STATE.phase = 'GUARD';
@@ -1696,9 +1701,14 @@ function showTrajectoryPreview() {
             document.getElementById('central-battle-status').classList.remove('hidden');
             document.querySelectorAll('.cam-arrow').forEach(el => el.classList.remove('hidden'));
             
-            showPopup("軌道確認完了", "全体図の確認が終わりました。", "攻撃パワー決定へ", () => {
+            showPopup("軌道確認完了", "全体図の確認が終わりました。", "攻撃パワー決定へ", async () => {
                 if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
                 STATE.phase = 'POWER';
+                processedPhase = 'POWER';
+                await updateRoomData({
+                    pin: STATE.roomPin,
+                    phase: 'POWER'
+                });
                 openPowerGauge('POWER');
             });
         }
