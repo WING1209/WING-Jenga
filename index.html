@@ -361,7 +361,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタックVer1.2</div>
+        <div class="title-logo">ジェンガアタックVer1.3</div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -457,7 +457,8 @@ const STATE = {
     targetPlayerIndex: 0,
     angleHVal: 50,
     angleVVal: 50,
-    roomId: null
+    roomId: null,
+    myName: ""
 };
 
 const HAND_SKINS = [
@@ -759,28 +760,24 @@ function submitName() {
         return;
     }
 
-    const myHand = HAND_SKINS[0];
-    // 自分をプレイヤーリストに追加
-    STATE.players.push({
-        name: input,
-        hp: 100,
-        maxHp: 100,
-        score: 0,
-        items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-        handSkin: myHand,
-        isReady: false
-    });
-    STATE.myIndex = 0;
-
+    STATE.myName = input;
     document.getElementById('menu-name').classList.add('hidden');
 
     if (STATE.isHost) {
-        // ホストの場合：IDを発行してロビー待機画面へ
+        // ホストの場合：IDを発行して自分をリストに登録し、ロビー待機画面へ
+        STATE.players.push({
+            name: STATE.myName,
+            hp: 100, maxHp: 100, score: 0,
+            items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
+            handSkin: HAND_SKINS[0],
+            isReady: false
+        });
+        STATE.myIndex = 0;
+
         STATE.roomId = Math.floor(1000 + Math.random() * 9000);
         document.getElementById('room-id-display').innerText = `ID: ${STATE.roomId}`;
         document.getElementById('menu-lobby').classList.remove('hidden');
         
-        // オフライン・モック用としてCPU/参加者を自動埋め込み（またはゲスト参加待ち）
         updateLobbyUI();
     } else {
         // ゲストの場合：ID入力画面へ
@@ -797,16 +794,16 @@ function connectGuest() {
         document.getElementById('room-id-display').innerText = `ID: ${STATE.roomId}`;
         document.getElementById('menu-lobby').classList.remove('hidden');
         
-        // ゲスト視点：ホストや他のプレイヤーを擬似的に追加してロビーに参加
-        if (STATE.players.length < 2) {
-            STATE.players.unshift({
-                name: "ホスト",
-                hp: 100, maxHp: 100, score: 0,
-                items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-                handSkin: HAND_SKINS[1],
-                isReady: false
-            });
-        }
+        // ゲスト自身をリストに参加者として正しく追加する
+        STATE.players.push({
+            name: STATE.myName,
+            hp: 100, maxHp: 100, score: 0,
+            items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
+            handSkin: HAND_SKINS[STATE.players.length % HAND_SKINS.length],
+            isReady: false
+        });
+        STATE.myIndex = STATE.players.length - 1;
+
         updateLobbyUI();
         alert("ホストへの接続に成功しました！");
     } else {
@@ -814,19 +811,18 @@ function connectGuest() {
     }
 }
 
-// ロビー画面のUI更新（参加プレイヤーの名前を順次表示・規定人数でボタン出現）
+// ロビー画面のUI更新（参加プレイヤーの名前を正しく順次追加表示・規定人数でボタン出現）
 function updateLobbyUI() {
     const list = document.getElementById('joined-players-list');
     list.innerHTML = "<b>参加者一覧:</b><br>" + STATE.players.map(p => `・${p.name}`).join('<br>');
     
-    // モックアップとして、ホスト画面でプレイヤー人数が足りない場合にCPUを自動追加してテストできるようにする
+    // モックアップとして、ホスト画面でプレイヤー人数が足りない場合にデモ参加者を自動追加してテストできるようにする
     if (STATE.isHost && STATE.players.length < STATE.playerCount) {
-        // デモ用に自動で参加者を増やす処理（ボタンまたは自動）
         setTimeout(() => {
             if (STATE.players.length < STATE.playerCount) {
                 const nextId = STATE.players.length + 1;
                 STATE.players.push({
-                    name: `プレイヤー${nextId}`,
+                    name: `ゲスト${nextId}`,
                     hp: 100, maxHp: 100, score: 0,
                     items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
                     handSkin: HAND_SKINS[(nextId-1) % HAND_SKINS.length],
@@ -873,7 +869,6 @@ function startOrderRoulette() {
     if (STATE.isHost) {
         btn.innerText = "ストップ！（ホストのみ停止可能）";
         btn.classList.remove('hidden');
-        // ホストのみがタップで停止させる
         btn.onclick = () => {
             clearInterval(rouletteTimer);
             stopRouletteResult();
