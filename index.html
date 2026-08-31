@@ -71,27 +71,25 @@
             display: block;
         }
 
-        /* カメラ操作用矢印ボタン（半透明） */
         .cam-arrow {
             position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
             width: 45px;
             height: 45px;
             background: rgba(255, 255, 255, 0.25);
             border: 2px solid rgba(255, 255, 255, 0.6);
             border-radius: 50%;
             color: white;
-            font-size: 20px;
+            font-size: 24px;
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 20;
             cursor: pointer;
-            touch-action: none;
         }
-        #cam-left { left: 10px; top: 50%; transform: translateY(-50%); }
-        #cam-right { right: 10px; top: 50%; transform: translateY(-50%); }
-        #cam-up { top: 15px; left: 50%; transform: translateX(-50%); }
-        #cam-down { bottom: 15px; left: 50%; transform: translateX(-50%); }
+        #cam-left { left: 10px; }
+        #cam-right { right: 10px; }
 
         #gui-container {
             width: 100%;
@@ -135,7 +133,6 @@
             width: 100%;
             margin-top: 3px;
             border-radius: 3px;
-            transition: width 0.3s ease;
         }
 
         .timer-box {
@@ -375,90 +372,16 @@
         }
 
         .power-impact-text {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: 900;
             color: #ff3300;
             text-shadow: 0 0 10px #ffff00;
         }
         .guard-impact-text {
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 900;
             color: #0099ff;
             text-shadow: 0 0 10px #00ffff;
-        }
-
-        /* --- 新設：攻防対戦結果画面のスタイリング --- */
-        #battle-result-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 120;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 25px 20px;
-            pointer-events: auto;
-        }
-
-        .battle-player-panel {
-            background: rgba(30, 30, 45, 0.9);
-            border: 2px solid #555;
-            border-radius: 12px;
-            padding: 15px;
-            width: 100%;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
-        }
-        .battle-player-panel.attacker {
-            border-color: #ff9900;
-            background: rgba(45, 30, 20, 0.9);
-        }
-        .battle-player-panel.defender {
-            border-color: #00ccff;
-            background: rgba(20, 35, 45, 0.9);
-        }
-
-        .panel-role-title {
-            font-size: 13px;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-        .attacker .panel-role-title { color: #ff9900; }
-        .defender .panel-role-title { color: #00ccff; }
-
-        .panel-player-name {
-            font-size: 20px;
-            font-weight: 900;
-            color: #fff;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .panel-hp-text {
-            font-size: 16px;
-            color: #ffcc00;
-        }
-
-        .panel-hp-meter-bg {
-            width: 100%;
-            height: 18px;
-            background: #222;
-            border-radius: 9px;
-            border: 1px solid #666;
-            margin-top: 8px;
-            overflow: hidden;
-            position: relative;
-        }
-        .panel-hp-meter-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #ff3333, #ff9900);
-            width: 100%;
-            transition: width 0.8s ease-in-out;
-            border-radius: 8px;
-        }
-
-        #battle-center-info {
-            text-align: center;
-            margin: auto 0;
         }
 
         #spit-overlay {
@@ -481,19 +404,11 @@
             100% { transform: translate(0, 0); }
         }
 
-        /* 画面フラッシュ演出 */
-        .flash-red { animation: flashRedAnim 0.6s ease-in-out; }
-        @keyframes flashRedAnim {
-            0% { background-color: rgba(255, 0, 0, 0); }
-            30% { background-color: rgba(255, 0, 0, 0.85); }
-            100% { background-color: rgba(255, 0, 0, 0); }
-        }
-
-        .flash-yellow { animation: flashYellowAnim 0.6s ease-in-out; }
-        @keyframes flashYellowAnim {
-            0% { background-color: rgba(255, 255, 0, 0); }
-            30% { background-color: rgba(255, 255, 0, 0.85); }
-            100% { background-color: rgba(255, 255, 0, 0); }
+        .battle-flash { animation: flashAnim 0.5s ease-in-out; }
+        @keyframes flashAnim {
+            0% { background-color: rgba(255,0,0,0); }
+            50% { background-color: rgba(255,0,0,0.6); }
+            100% { background-color: rgba(255,0,0,0); }
         }
     </style>
 </head>
@@ -510,12 +425,8 @@
 <div id="app-container">
     <div id="canvas-container">
         <canvas id="three-canvas"></canvas>
-        <!-- カメラ操作：左右上下の長押し対応矢印 -->
-        <div class="cam-arrow" id="cam-left">‹</div>
-        <div class="cam-arrow" id="cam-right">›</div>
-        <div class="cam-arrow" id="cam-up">▲</div>
-        <div class="cam-arrow" id="cam-down">▼</div>
-
+        <div class="cam-arrow" id="cam-left" onclick="rotateCam(-1)">‹</div>
+        <div class="cam-arrow" id="cam-right" onclick="rotateCam(1)">›</div>
         <div id="huge-count" class="hidden">40</div>
         <div id="turn-banner" class="hidden">〇〇の番です</div>
         <div id="central-battle-status" class="hidden"></div>
@@ -538,13 +449,13 @@
         </div>
 
         <div class="controls-info">
-            💡 左右矢印: 回転 | 上下矢印(長押し): 高さ変更 | タップ: ブロック選択
+            💡 左右矢印: 回転 | ダブルタップ: 近接/全体 | 上下スワイプ: 高さ移動
         </div>
     </div>
 
     <!-- タイトル画面 -->
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer6</div>
+        <div class="title-logo">ジェンガアタック</div>
         <div class="blink-text">スタート</div>
     </div>
 
@@ -610,42 +521,6 @@
         </div>
         <div id="gauge-val-display" style="font-size:22px; font-weight:bold; margin:8px 0;">50</div>
         <button class="menu-btn" id="gauge-stop-btn" onclick="stopGauge()">STOP!</button>
-    </div>
-
-    <!-- 攻防結果専用オーバレイ演出画面 -->
-    <div id="battle-result-overlay" class="hidden">
-        <!-- 上部：攻撃側プレイヤー情報 -->
-        <div class="battle-player-panel attacker">
-            <div class="panel-role-title">⚔️ 攻撃側 (ATTACKER)</div>
-            <div class="panel-player-name">
-                <span id="b-atk-name">---</span>
-                <span class="panel-hp-text">HP: <span id="b-atk-hp-num">100</span>/<span id="b-atk-maxhp-num">100</span></span>
-            </div>
-            <div class="panel-hp-meter-bg">
-                <div class="panel-hp-meter-fill" id="b-atk-hp-bar"></div>
-            </div>
-        </div>
-
-        <!-- 中央：パワーVSガード数値結果表示 -->
-        <div id="battle-center-info">
-            <div id="b-power-score" class="power-impact-text">0 POWER</div>
-            <div style="font-size: 16px; font-weight: bold; color: #aaa; margin: 4px 0;">VS</div>
-            <div id="b-guard-score" class="guard-impact-text">0 GUARD</div>
-            <div id="b-result-msg" style="margin-top: 15px; font-weight: bold; font-size: 18px;"></div>
-            <button class="menu-btn" id="b-result-next-btn" style="margin-top: 20px; width: 80%; background: #ff3333; margin-left: auto; margin-right: auto;">次へ</button>
-        </div>
-
-        <!-- 下部：防御側プレイヤー情報 -->
-        <div class="battle-player-panel defender">
-            <div class="panel-role-title">🛡️ 防御側 (DEFENDER)</div>
-            <div class="panel-player-name">
-                <span id="b-def-name">---</span>
-                <span class="panel-hp-text">HP: <span id="b-def-hp-num">100</span>/<span id="b-def-maxhp-num">100</span></span>
-            </div>
-            <div class="panel-hp-meter-bg">
-                <div class="panel-hp-meter-fill" id="b-def-hp-bar"></div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -880,11 +755,11 @@ function activatePhysics() {
 
 function updateCameraPosition() {
     const dist = STATE.isZoomed ? 7 : 22;
-    const targetY = STATE.isZoomed ? STATE.camHeight : STATE.camHeight;
+    const targetY = STATE.isZoomed ? STATE.camHeight : 12;
     const x = Math.sin(STATE.camAngle) * dist;
     const z = Math.cos(STATE.camAngle) * dist;
     camera.position.set(x, targetY, z);
-    camera.lookAt(0, STATE.camHeight / 2, 0);
+    camera.lookAt(0, STATE.isZoomed ? STATE.camHeight : 6, 0);
 }
 
 function rotateCam(dir) {
@@ -892,53 +767,59 @@ function rotateCam(dir) {
     updateCameraPosition();
 }
 
-/* --- タッチ/ポインター制御の改善（ボタン移動＆タップ誤作動防止） --- */
-let camHeightInterval = null;
+/* --- タッチ/ポインター制御 --- */
+let lastTapTime = 0;
+let touchStartY = 0;
+let touchStartX = 0;
+let touchStartTime = 0;
+let singleTapTimeout = null;
 
 function initTouchControls() {
     const container = document.getElementById('canvas-container');
 
-    // 左右ボタンのタップ操作
-    const leftBtn = document.getElementById('cam-left');
-    const rightBtn = document.getElementById('cam-right');
-    leftBtn.addEventListener('click', (e) => { e.stopPropagation(); rotateCam(-1); });
-    rightBtn.addEventListener('click', (e) => { e.stopPropagation(); rotateCam(1); });
-
-    // 上下矢印ボタンの長押し（押し続け）対応
-    const upBtn = document.getElementById('cam-up');
-    const downBtn = document.getElementById('cam-down');
-
-    const startCamMove = (dir) => {
-        if (camHeightInterval) clearInterval(camHeightInterval);
-        camHeightInterval = setInterval(() => {
-            STATE.camHeight = Math.max(2, Math.min(22, STATE.camHeight + dir * 0.4));
-            updateCameraPosition();
-        }, 30);
+    const handleStart = (clientX, clientY) => {
+        touchStartX = clientX;
+        touchStartY = clientY;
+        touchStartTime = Date.now();
     };
 
-    const stopCamMove = () => {
-        if (camHeightInterval) {
-            clearInterval(camHeightInterval);
-            camHeightInterval = null;
+    const handleMove = (clientY) => {
+        if (!STATE.isZoomed) return;
+        const diffY = touchStartY - clientY;
+        if (Math.abs(diffY) > 5) {
+            STATE.camHeight = Math.max(1, Math.min(18, STATE.camHeight + (diffY > 0 ? 0.3 : -0.3)));
+            touchStartY = clientY;
+            updateCameraPosition();
         }
     };
 
-    ['pointerdown', 'touchstart'].forEach(evt => {
-        upBtn.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); startCamMove(1); });
-        downBtn.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); startCamMove(-1); });
-    });
+    const handleEnd = (clientX, clientY) => {
+        const elapsed = Date.now() - touchStartTime;
+        const dist = Math.hypot(clientX - touchStartX, clientY - touchStartY);
 
-    ['pointerup', 'pointercancel', 'pointerleave', 'touchend', 'touchcancel'].forEach(evt => {
-        upBtn.addEventListener(evt, stopCamMove);
-        downBtn.addEventListener(evt, stopCamMove);
-    });
+        if (elapsed < 350 && dist < 15) {
+            const now = Date.now();
+            if (now - lastTapTime < 300) {
+                if (singleTapTimeout) {
+                    clearTimeout(singleTapTimeout);
+                    singleTapTimeout = null;
+                }
+                STATE.isZoomed = !STATE.isZoomed;
+                updateCameraPosition();
+                lastTapTime = 0;
+            } else {
+                lastTapTime = now;
+                singleTapTimeout = setTimeout(() => {
+                    handleBlockSelection(clientX, clientY);
+                    singleTapTimeout = null;
+                }, 250);
+            }
+        }
+    };
 
-    // 画面タップでジェンガブロックを選択する処理（スライド等の競合を除去）
-    container.addEventListener('pointerdown', (e) => {
-        // ボタンエリアタップ時はブロック選択処理を行わない
-        if (e.target.classList.contains('cam-arrow')) return;
-        handleBlockSelection(e.clientX, e.clientY);
-    });
+    container.addEventListener('pointerdown', (e) => handleStart(e.clientX, e.clientY));
+    container.addEventListener('pointermove', (e) => handleMove(e.clientY));
+    container.addEventListener('pointerup', (e) => handleEnd(e.clientX, e.clientY));
 }
 
 function handleBlockSelection(clientX, clientY) {
@@ -1451,7 +1332,6 @@ function startTurn() {
 
 function startTurnUI() {
     document.getElementById('huge-count').classList.add('hidden');
-    document.getElementById('battle-result-overlay').classList.add('hidden');
     updateGUI();
     updateCentralStatus();
 
@@ -1486,7 +1366,6 @@ function startTurnUI() {
 async function nextTurn() {
     clearInterval(STATE.timerInterval);
     document.getElementById('spit-overlay').classList.add('hidden');
-    document.getElementById('battle-result-overlay').classList.add('hidden');
     if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
     
     STATE.turnIndex = (STATE.turnIndex + 1) % STATE.players.length;
@@ -1535,11 +1414,19 @@ function updateGUI() {
     updateCentralStatus();
 }
 
+/* --- 修正ポイント：攻防プレイヤーの動的判定アルゴリズム --- */
 function updateCentralStatus() {
     const cs = document.getElementById('central-battle-status');
     cs.classList.remove('hidden');
     const curP = STATE.players[STATE.turnIndex];
-    const targetP = STATE.players[STATE.targetPlayerIndex] || STATE.players[(STATE.turnIndex + 1) % STATE.players.length];
+    
+    // 1人プレイ、または攻撃対象が未決定・自分と同じ場合は次のプレイヤーを「防」として動的取得
+    let targetIdx = STATE.targetPlayerIndex;
+    if (STATE.players.length > 1 && (targetIdx === STATE.turnIndex || targetIdx >= STATE.players.length)) {
+        targetIdx = (STATE.turnIndex + 1) % STATE.players.length;
+    }
+    
+    const targetP = STATE.players[targetIdx] || curP;
     
     if (curP && targetP) {
         cs.innerHTML = `
@@ -1555,6 +1442,7 @@ let tempSelectedTargetIndex = -1;
 function selectTargetPlayer() {
     if (STATE.players.length === 1) {
         STATE.targetPlayerIndex = 0;
+        updateCentralStatus();
         startAngleSelectionH();
         return;
     }
@@ -1567,7 +1455,7 @@ function selectTargetPlayer() {
 function renderTargetSelectPopup() {
     let html = `<div class="target-select-list" style="display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:200px; overflow-y:auto;">`;
     STATE.players.forEach((p, i) => {
-        if (i !== STATE.myIndex) {
+        if (i !== STATE.turnIndex) {
             const isSelected = (tempSelectedTargetIndex === i);
             html += `<div style="background:${isSelected ? '#554422' : '#333'}; border:2px solid ${isSelected ? '#ffcc00' : '#555'}; padding:10px; border-radius:6px; cursor:pointer; text-align:left;" onclick="window.tempSelectTarget(${i})">
                 <b>${p.name}</b> (HP: ${p.hp}) ${isSelected ? ' ◀ 選択中' : ''}
@@ -1591,6 +1479,7 @@ window.confirmTargetFinal = async function() {
         return;
     }
     STATE.targetPlayerIndex = tempSelectedTargetIndex;
+    updateCentralStatus();
     closePopup();
 
     await updateRoomData({
@@ -1640,7 +1529,11 @@ function openPowerGauge(type) {
     STATE.gaugeRunning = true;
 
     const curP = STATE.players[STATE.turnIndex];
-    const targetP = STATE.players[STATE.targetPlayerIndex];
+    let targetIdx = STATE.targetPlayerIndex;
+    if (STATE.players.length > 1 && targetIdx === STATE.turnIndex) {
+        targetIdx = (STATE.turnIndex + 1) % STATE.players.length;
+    }
+    const targetP = STATE.players[targetIdx] || curP;
 
     if (type === 'ANGLE_H') {
         document.getElementById('gauge-owner-title').innerText = `【${curP ? curP.name : ''}のターン】横軸角度決定`;
@@ -1786,86 +1679,31 @@ function showTrajectoryPreview() {
     }, 30);
 }
 
-/* --- 攻防結果の演出画面の刷新（上部攻撃者・下部防御者・HPゲージ・カラーフラッシュ） --- */
 function resolveBattleResult() {
     closePopup();
     const diff = STATE.powerScore - STATE.guardScore;
     const turnP = STATE.players[STATE.turnIndex];
-    const targetP = STATE.players[STATE.targetPlayerIndex] || STATE.players[(STATE.turnIndex + 1) % STATE.players.length];
+    const targetP = STATE.players[STATE.targetPlayerIndex];
 
-    const resultOverlay = document.getElementById('battle-result-overlay');
-    const atkNameEl = document.getElementById('b-atk-name');
-    const atkHpNumEl = document.getElementById('b-atk-hp-num');
-    const atkMaxHpNumEl = document.getElementById('b-atk-maxhp-num');
-    const atkBarEl = document.getElementById('b-atk-hp-bar');
+    let msg = `<div class="power-impact-text">${STATE.powerScore} POWER</div>`;
+    msg += `<div class="guard-impact-text">VS ${STATE.guardScore} GUARD</div><br>`;
 
-    const defNameEl = document.getElementById('b-def-name');
-    const defHpNumEl = document.getElementById('b-def-hp-num');
-    const defMaxHpNumEl = document.getElementById('b-def-maxhp-num');
-    const defBarEl = document.getElementById('b-def-hp-bar');
-
-    const powerScoreEl = document.getElementById('b-power-score');
-    const guardScoreEl = document.getElementById('b-guard-score');
-    const resultMsgEl = document.getElementById('b-result-msg');
-    const nextBtn = document.getElementById('b-result-next-btn');
-
-    // 攻撃者・防御者情報の初期設定
-    if (turnP) {
-        atkNameEl.innerText = turnP.name;
-        atkHpNumEl.innerText = turnP.hp;
-        atkMaxHpNumEl.innerText = turnP.maxHp;
-        atkBarEl.style.width = `${(turnP.hp / turnP.maxHp) * 100}%`;
-    }
-    if (targetP) {
-        defNameEl.innerText = targetP.name;
-        defHpNumEl.innerText = targetP.hp;
-        defMaxHpNumEl.innerText = targetP.maxHp;
-        defBarEl.style.width = `${(targetP.hp / targetP.maxHp) * 100}%`;
-    }
-
-    powerScoreEl.innerText = `${STATE.powerScore} POWER`;
-    guardScoreEl.innerText = `VS ${STATE.guardScore} GUARD`;
-
-    let damage = 0;
     if (diff <= 0) {
-        resultMsgEl.innerHTML = `<b style="color:#00ff00;">🛡️ ガード成功！ダメージなし</b>`;
+        msg += `<b style="color:#00ff00;">ガード成功！ダメージなし</b>`;
     } else {
-        damage = Math.ceil(diff / 10);
-        resultMsgEl.innerHTML = `<b style="color:#ff3333; font-size:22px;">💥 ${targetP ? targetP.name : '相手'} に ${damage} のダメージ！</b>`;
-    }
-
-    resultOverlay.classList.remove('hidden');
-
-    // 画面カラー演出 & HP減少アニメーション
-    setTimeout(() => {
-        const appContainer = document.getElementById('app-container');
-
-        if (damage > 0 && targetP) {
+        const damage = Math.ceil(diff / 10);
+        if (targetP) {
             targetP.hp = Math.max(0, targetP.hp - damage);
-            defHpNumEl.innerText = targetP.hp;
-            defBarEl.style.width = `${(targetP.hp / targetP.maxHp) * 100}%`;
-
-            // 自身が攻撃を受けた場合（防御側）は画面が真っ赤に、攻撃側なら一瞬黄色にフラッシュ
-            if (STATE.myIndex === STATE.targetPlayerIndex) {
-                appContainer.classList.add('flash-red');
-                appContainer.classList.add('shake');
-                setTimeout(() => {
-                    appContainer.classList.remove('flash-red');
-                    appContainer.classList.remove('shake');
-                }, 600);
-            } else if (STATE.myIndex === STATE.turnIndex) {
-                appContainer.classList.add('flash-yellow');
-                appContainer.classList.add('shake');
-                setTimeout(() => {
-                    appContainer.classList.remove('flash-yellow');
-                    appContainer.classList.remove('shake');
-                }, 600);
-            } else {
-                appContainer.classList.add('shake');
-                setTimeout(() => appContainer.classList.remove('shake'), 400);
-            }
+            msg += `<b style="color:#ff3333; font-size:20px;">${targetP.name} に ${damage} の大ダメージ！</b>`;
         }
-    }, 400);
+        
+        document.getElementById('app-container').classList.add('shake');
+        document.getElementById('app-container').classList.add('battle-flash');
+        setTimeout(() => {
+            document.getElementById('app-container').classList.remove('shake');
+            document.getElementById('app-container').classList.remove('battle-flash');
+        }, 600);
+    }
 
     activatePhysics();
 
@@ -1874,26 +1712,35 @@ function resolveBattleResult() {
     }
 
     if (STATE.selectedBlock) {
-        const pushForce = (STATE.powerScore / 50) * 10;
+        const pushForce = Math.max(8.0, (STATE.powerScore / 100) * 25.0);
         const dirZ = STATE.selectedBlock.isRotated ? 0 : -pushForce;
         const dirX = STATE.selectedBlock.isRotated ? -pushForce : 0;
 
         STATE.selectedBlock.body.applyImpulse(
-            new CANNON.Vec3(dirX, 2.0, dirZ),
+            new CANNON.Vec3(dirX, 3.0, dirZ),
             STATE.selectedBlock.body.position
         );
+
+        blocks.forEach(b => {
+            if (b !== STATE.selectedBlock && Math.abs(b.body.position.y - STATE.selectedBlock.body.position.y) < 1.2) {
+                b.body.applyImpulse(
+                    new CANNON.Vec3((Math.random() - 0.5) * 0.8, 0.2, (Math.random() - 0.5) * 0.8),
+                    b.body.position
+                );
+            }
+        });
+
         if (turnP) turnP.score++;
     }
 
-    nextBtn.onclick = () => {
-        resultOverlay.classList.add('hidden');
+    showPopup("バトル結果発表", msg, "次へ", () => {
         if (targetP && targetP.hp <= 0) {
             alert(`${targetP.name} 脱落！`);
         }
         if (STATE.turnIndex === STATE.myIndex) {
             nextTurn();
         }
-    };
+    });
 }
 
 function useItem(type) {
