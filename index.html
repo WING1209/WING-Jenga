@@ -24,7 +24,6 @@
             color: #fff;
         }
 
-        /* 全体コンテナ（画面比率フィット） */
         #app-container {
             width: 100vw;
             height: 100vh;
@@ -34,7 +33,6 @@
             background: #1a1a1a;
         }
 
-        /* 3Dキャンバス領域 (70%) */
         #canvas-container {
             width: 100%;
             height: 70%;
@@ -45,7 +43,6 @@
             height: 100%;
         }
 
-        /* 右側/下部 GUI領域 (30%) */
         #gui-container {
             width: 100%;
             height: 30%;
@@ -58,7 +55,6 @@
             z-index: 10;
         }
 
-        /* GUI内部 レイアウト */
         .gui-row {
             display: flex;
             justify-content: space-between;
@@ -101,7 +97,6 @@
             border: 1px solid #ffcc00;
         }
 
-        /* アイテムボタン群 */
         .item-grid {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
@@ -124,7 +119,6 @@
             box-shadow: 0 0 5px #ff9900;
         }
 
-        /* 操作ボタン群 */
         .controls-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -141,7 +135,6 @@
         }
         .ctrl-btn:active { background: #3377bb; }
 
-        /* オーバーレイ表示（タイトル、メニュー、ポップアップ） */
         .overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -155,7 +148,6 @@
         }
         .hidden { display: none !important; }
 
-        /* タイトル画面 */
         .title-logo {
             font-size: 36px;
             font-weight: 900;
@@ -172,7 +164,6 @@
         }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-        /* メニューUI */
         .menu-box {
             width: 90%;
             max-width: 320px;
@@ -207,7 +198,6 @@
             color: #fff;
         }
 
-        /* ゲーミング＆演出オーバーレイ */
         #huge-count {
             position: absolute;
             top: 35%; left: 50%;
@@ -261,7 +251,6 @@
             text-shadow: 0 0 10px #00ffff;
         }
 
-        /* くしゃみ演出汚れ */
         #spit-overlay {
             position: absolute;
             top:0; left:0; width:100%; height:100%;
@@ -272,7 +261,6 @@
                         radial-gradient(circle at 50% 20%, rgba(220,255,0,0.3) 0%, transparent 15%);
         }
 
-        /* 画面シェイク animation */
         .shake {
             animation: shake 0.3s infinite;
         }
@@ -289,21 +277,18 @@
 <body>
 
 <div id="app-container">
-    <!-- 3D 視界エリア -->
     <div id="canvas-container">
         <canvas id="three-canvas"></canvas>
         <div id="huge-count" class="hidden">5</div>
         <div id="spit-overlay" class="hidden"></div>
     </div>
 
-    <!-- GUIコントロールエリア -->
     <div id="gui-container">
         <div class="gui-row">
             <div class="player-list-mini" id="gui-player-list"></div>
             <div class="timer-box" id="gui-timer">20</div>
         </div>
 
-        <!-- アイテムボタン一覧 -->
         <div class="item-grid">
             <div class="item-btn" id="item-ojama" onclick="useItem('ojama')">お邪魔<br><span id="count-ojama">0</span></div>
             <div class="item-btn" id="item-sneeze" onclick="useItem('sneeze')">くしゃみ<br><span id="count-sneeze">0</span></div>
@@ -313,7 +298,6 @@
             <div class="item-btn" id="item-rob" onclick="useItem('rob')">強奪<br><span id="count-rob">0</span></div>
         </div>
 
-        <!-- 操作ボタン一覧 -->
         <div class="controls-grid">
             <button class="ctrl-btn" onclick="setViewMode('all')">全体</button>
             <button class="ctrl-btn" onclick="cycleFace()">面 <span id="face-num">1</span></button>
@@ -322,13 +306,11 @@
         </div>
     </div>
 
-    <!-- UI Overlay : タイトル画面 -->
     <div id="title-screen" class="overlay">
         <div class="title-logo">ジェンガアタック</div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
-    <!-- UI Overlay : メニュー画面 -->
     <div id="menu-screen" class="overlay hidden">
         <div class="menu-box" id="menu-main">
             <h3>メインメニュー</h3>
@@ -337,7 +319,6 @@
             <button class="menu-btn" onclick="location.reload()">３．終了</button>
         </div>
 
-        <!-- ホスト設定 -->
         <div class="menu-box hidden" id="menu-host">
             <h3>人数選択</h3>
             <div style="display:flex; gap:5px; justify-content:center;">
@@ -349,7 +330,6 @@
             </div>
         </div>
 
-        <!-- 名前入力 -->
         <div class="menu-box hidden" id="menu-name">
             <h3>プレイヤーネーム</h3>
             <p style="font-size:11px; color:#aaa;">(ひらがな・数字 6文字まで)</p>
@@ -357,7 +337,6 @@
             <button class="menu-btn" onclick="submitName()">決定</button>
         </div>
 
-        <!-- 接続待機（ホスト） -->
         <div class="menu-box hidden" id="menu-lobby">
             <h3>接続待機中...</h3>
             <div class="blink-text" style="font-size:24px;" id="room-id-display">ID: ----</div>
@@ -365,7 +344,6 @@
             <button class="menu-btn hidden" id="btn-start-game" onclick="startOrderRoulette()">ゲーム開始</button>
         </div>
 
-        <!-- ゲスト接続ID入力 -->
         <div class="menu-box hidden" id="menu-guest-id">
             <h3>接続ID入力 (4桁)</h3>
             <input type="text" id="guest-id-input" maxlength="4" placeholder="1234">
@@ -373,7 +351,6 @@
         </div>
     </div>
 
-    <!-- UI Overlay : 汎用ポップアップ / ルーレット / ゲージ判定 -->
     <div id="popup-overlay" class="overlay hidden">
         <div class="menu-box" id="popup-content">
             <h3 id="popup-title">タイトル</h3>
@@ -382,7 +359,6 @@
         </div>
     </div>
 
-    <!-- 威力/ガード決定 ゲージ -->
     <div id="power-gauge-overlay" class="hidden">
         <h3 id="gauge-owner-title">ターンプレイヤー</h3>
         <div class="gauge-bar-bg">
@@ -397,15 +373,12 @@
 </div>
 
 <script>
-/* ==========================================================================
-   1. ゲームデータ ＆ 状態管理 (State Management)
-   ========================================================================== */
 const STATE = {
-    mode: 'TITLE', // TITLE, MENU, LOBBY, GAME, OVER
+    mode: 'TITLE',
     isHost: false,
     playerCount: 1,
     myIndex: 0,
-    players: [], // { name, hp, score, items: {}, handColor, tattoo }
+    players: [],
     turnIndex: 0,
     timer: 20,
     timerInterval: null,
@@ -420,10 +393,10 @@ const STATE = {
     gaugeDir: 1,
     powerScore: 0,
     guardScore: 0,
-    phase: 'SELECT' // SELECT, ANGLE_H, ANGLE_V, POWER, GUARD, EXECUTE
+    phase: 'SELECT',
+    physicsActive: false // 物理シミュレーション発動フラグ
 };
 
-// 手の個性データ（ビジュアル演出用）
 const HAND_SKINS = [
     { skin: 0xffdbac, nail: 0xff0055, length: 1.0 },
     { skin: 0x8d5524, nail: 0x00ffff, length: 1.2 },
@@ -432,31 +405,24 @@ const HAND_SKINS = [
     { skin: 0xc68642, nail: 0xff6600, length: 1.0 }
 ];
 
-/* ==========================================================================
-   2. Three.js ＆ Cannon.js (3Dグラフィックス＆物理エンジン設定)
-   ========================================================================== */
 let scene, camera, renderer, world;
-let blocks = []; // { mesh, body, id, tier, isHighlighted }
+let blocks = [];
 let handMeshes = [];
 
 function init3D() {
     const container = document.getElementById('canvas-container');
     
-    // シーン
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a24);
 
-    // カメラ
     camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
     camera.position.set(0, 12, 25);
     camera.lookAt(0, 6, 0);
 
-    // レンダー
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.shadowMap.enabled = true;
 
-    // 照明
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
@@ -465,21 +431,25 @@ function init3D() {
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    // 物理ワールド
+    // 物理ワールドの設定（摩擦・反発調整）
     world = new CANNON.World();
     world.gravity.set(0, -9.82, 0);
     world.broadphase = new CANNON.NaiveBroadphase();
-    world.solver.iterations = 10;
+    world.solver.iterations = 20; // 演算の精度を上げて倒れにくく改善
 
-    // 床・台座
-    createTable();
+    // 摩擦と反発のパラメータを安定化
+    const woodMaterial = new CANNON.Material('wood');
+    const contactMaterial = new CANNON.ContactMaterial(woodMaterial, woodMaterial, {
+        friction: 0.6,
+        restitution: 0.05
+    });
+    world.addContactMaterial(contactMaterial);
 
-    // ループ開始
+    createTable(woodMaterial);
     animate();
 }
 
-function createTable() {
-    // 視覚用
+function createTable(material) {
     const geo = new THREE.CylinderGeometry(6, 6, 1, 32);
     const mat = new THREE.MeshStandardMaterial({ color: 0x442211, roughness: 0.4 });
     const mesh = new THREE.Mesh(geo, mat);
@@ -487,15 +457,12 @@ function createTable() {
     mesh.receiveShadow = true;
     scene.add(mesh);
 
-    // 物理用
-    const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Cylinder(6, 6, 1, 32) });
+    const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Cylinder(6, 6, 1, 32), material: material });
     groundBody.position.set(0, -0.5, 0);
     world.addBody(groundBody);
 }
 
-// ジェンガタワー構築（20段、1段3本）
 function buildJengaTower() {
-    // 既存ブロックの削除
     blocks.forEach(b => {
         scene.remove(b.mesh);
         world.remove(b.body);
@@ -506,31 +473,29 @@ function buildJengaTower() {
     const blockLength = 3.0;
     const blockHeight = 0.6;
 
-    for (let val = 0; val < 20; val++) { // 20段
+    for (let val = 0; val < 20; val++) {
         const isRotated = (val % 2 === 1);
-        for (let j = 0; j < 3; j++) { // 3本
-            const offset = (j - 1) * (blockWidth + 0.05);
+        for (let j = 0; j < 3; j++) {
+            const offset = (j - 1) * (blockWidth + 0.02);
 
-            // Three.js メッシュ
             const geometry = new THREE.BoxGeometry(
                 isRotated ? blockLength : blockWidth,
                 blockHeight,
                 isRotated ? blockWidth : blockLength
             );
             
-            // テクスチャ代わりに側面に「良夫」刻印用の色設定
             const materials = [
                 new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
                 new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
                 new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
                 new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
-                new THREE.MeshStandardMaterial({ color: 0xb58863 }), // 刻印面イメージ
+                new THREE.MeshStandardMaterial({ color: 0xb58863 }),
                 new THREE.MeshStandardMaterial({ color: 0xb58863 })
             ];
 
             const mesh = new THREE.Mesh(geometry, materials);
             const posX = isRotated ? 0 : offset;
-            const posY = val * (blockHeight + 0.02) + blockHeight / 2;
+            const posY = val * blockHeight + blockHeight / 2;
             const posZ = isRotated ? offset : 0;
 
             mesh.position.set(posX, posY, posZ);
@@ -538,13 +503,14 @@ function buildJengaTower() {
             mesh.receiveShadow = true;
             scene.add(mesh);
 
-            // Cannon.js 物理ボディ
             const shape = new CANNON.Box(new CANNON.Vec3(
                 (isRotated ? blockLength : blockWidth) / 2,
                 blockHeight / 2,
                 (isRotated ? blockWidth : blockLength) / 2
             ));
-            const body = new CANNON.Body({ mass: 0.8, shape: shape });
+            
+            // ★【修正ポイント1】初期状態では質量(mass)を0にして静止・固定状態にする
+            const body = new CANNON.Body({ mass: 0, shape: shape });
             body.position.set(posX, posY, posZ);
             if (isRotated) {
                 body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
@@ -556,13 +522,13 @@ function buildJengaTower() {
                 body: body,
                 id: `block_${val}_${j}`,
                 tier: val + 1,
-                isHighlighted: false
+                isRotated: isRotated
             });
         }
     }
+    STATE.physicsActive = false;
 }
 
-// 手の表示演出（各プレイヤーの手を周囲に配置）
 function createPlayerHands() {
     handMeshes.forEach(m => scene.remove(m));
     handMeshes = [];
@@ -572,8 +538,6 @@ function createPlayerHands() {
         const radius = 8;
         
         const group = new THREE.Group();
-        
-        // 腕・手の簡易表現
         const skinMat = new THREE.MeshStandardMaterial({ color: p.handSkin.skin });
         const armGeo = new THREE.CylinderGeometry(0.4, 0.5, 3, 16);
         const arm = new THREE.Mesh(armGeo, skinMat);
@@ -588,12 +552,22 @@ function createPlayerHands() {
     });
 }
 
-// 3Dアニメーションループ
+// ★【修正ポイント2】アクション実行時のみ質量を与えて物理計算を開始
+function activatePhysics() {
+    if (STATE.physicsActive) return;
+    STATE.physicsActive = true;
+
+    blocks.forEach(b => {
+        b.body.mass = 0.8; // 物理適用
+        b.body.updateMassProperties();
+    });
+}
+
 function animate() {
     requestAnimationFrame(animate);
 
-    // 物理演算更新（ゲーム実行中のみ）
-    if (STATE.mode === 'GAME') {
+    // アクションが発動して物理演算がONの時のみシミュレーションを実行
+    if (STATE.mode === 'GAME' && STATE.physicsActive) {
         world.step(1 / 60);
         for (let i = 0; i < blocks.length; i++) {
             blocks[i].mesh.position.copy(blocks[i].body.position);
@@ -602,7 +576,6 @@ function animate() {
         checkCollapse();
     }
 
-    // ゲージ進行処理
     if (STATE.gaugeRunning) {
         STATE.gaugePos += STATE.gaugeSpeed * STATE.gaugeDir;
         if (STATE.gaugePos >= 100 || STATE.gaugePos <= 0) {
@@ -614,10 +587,6 @@ function animate() {
 
     renderer.render(scene, camera);
 }
-
-/* ==========================================================================
-   3. UI / メニュー / イベントフロー (Game Flow & Handlers)
-   ========================================================================== */
 
 function showMenu() {
     document.getElementById('title-screen').classList.add('hidden');
@@ -669,7 +638,6 @@ function submitName() {
         const roomId = Math.floor(1000 + Math.random() * 9000);
         document.getElementById('room-id-display').innerText = `ID: ${roomId}`;
         
-        // ダミープレイヤーの補完（人数分）
         for (let i = 2; i <= STATE.playerCount; i++) {
             STATE.players.push({
                 name: `つわもの${i}`,
@@ -695,10 +663,8 @@ function updateLobbyUI() {
 function connectGuest() {
     const id = document.getElementById('guest-id-input').value;
     if (id.length === 4) {
-        // 接続成功演出
         document.getElementById('menu-guest-id').innerHTML = "<h3>接続成功！</h3><p>ホストの開始を待っています...</p>";
         setTimeout(() => {
-            // ダミーでゲーム開始
             STATE.players.unshift({ name: "ホスト", hp: 100, maxHp: 100, score: 0, items:{}, handSkin: HAND_SKINS[0] });
             startOrderRoulette();
         }, 1500);
@@ -707,7 +673,6 @@ function connectGuest() {
     }
 }
 
-// 順番決めルーレット
 function startOrderRoulette() {
     document.getElementById('menu-screen').classList.add('hidden');
     
@@ -726,11 +691,9 @@ function startOrderRoulette() {
     document.getElementById('popup-btn').innerText = "ストップ！";
     document.getElementById('popup-btn').onclick = () => {
         clearInterval(timer);
-        // 画面シェイク演出
         document.getElementById('app-container').classList.add('shake');
         setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 500);
 
-        // シャッフル
         STATE.players.sort(() => Math.random() - 0.5);
         
         document.getElementById('popup-title').innerText = "順番決定！";
@@ -742,10 +705,6 @@ function startOrderRoulette() {
         };
     };
 }
-
-/* ==========================================================================
-   4. ゲームメインループ ＆ ターン制御 (Game Loop & Turn Controller)
-   ========================================================================== */
 
 function startGame() {
     STATE.mode = 'GAME';
@@ -760,7 +719,6 @@ function startTurn() {
     STATE.timer = 20;
     document.getElementById('huge-count').classList.add('hidden');
     
-    // アイテム効果の初期化チェック等
     updateGUI();
 
     if (STATE.timerInterval) clearInterval(STATE.timerInterval);
@@ -776,20 +734,19 @@ function startTurn() {
 
         if (STATE.timer <= 0) {
             clearInterval(STATE.timerInterval);
-            nextTurn(); // タイムアウトで自動終了
+            nextTurn();
         }
     }, 1000);
 }
 
 function nextTurn() {
     clearInterval(STATE.timerInterval);
-    document.getElementById('spit-overlay').classList.add('hidden'); // くしゃみリセット
+    document.getElementById('spit-overlay').classList.add('hidden');
     STATE.turnIndex = (STATE.turnIndex + 1) % STATE.players.length;
     startTurn();
 }
 
 function updateGUI() {
-    // プレイヤーリスト
     const container = document.getElementById('gui-player-list');
     container.innerHTML = '';
     STATE.players.forEach((p, idx) => {
@@ -803,7 +760,6 @@ function updateGUI() {
         container.appendChild(card);
     });
 
-    // アイテム数
     const curP = STATE.players[STATE.turnIndex];
     ['ojama', 'sneeze', 'renzoku', 'pass', 'ganriki', 'rob'].forEach(item => {
         const cnt = curP.items[item] || 0;
@@ -814,16 +770,11 @@ function updateGUI() {
     });
 }
 
-/* ==========================================================================
-   5. 操作ボタン機能（全体、面、近接、段数）
-   ========================================================================== */
-
 function setViewMode(mode) {
     if (mode === 'all') {
         camera.position.set(0, 12, 25);
         camera.lookAt(0, 6, 0);
     } else if (mode === 'zoom') {
-        // 5段分アップ
         const targetY = (STATE.currentTier - 1) * 3 + 2;
         camera.position.set(0, targetY, 8);
         camera.lookAt(0, targetY, 0);
@@ -845,16 +796,11 @@ function cycleTier() {
     setViewMode('zoom');
 }
 
-/* ==========================================================================
-   6. 抜き取り・角度選択・パワー＆ガードバトル
-   ========================================================================== */
-
-// 簡易タップ判定（Raycastによるブロック選択）
 window.addEventListener('pointerdown', (e) => {
     if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
 
     const rect = renderer.domElement.getBoundingClientRect();
-    if (e.clientY > rect.bottom) return; // GUIエリア無視
+    if (e.clientY > rect.bottom) return;
 
     const mouse = new THREE.Vector2(
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -876,7 +822,6 @@ window.addEventListener('pointerdown', (e) => {
 
 function startAngleSelection() {
     STATE.phase = 'ANGLE_H';
-    // 横・縦の角度決定ダイアログ
     showPopup("角度選択 (1/2)", "横のストップ位置を決めます。中心の赤い〇を狙ってください！", "決定", () => {
         STATE.phase = 'ANGLE_V';
         showPopup("角度選択 (2/2)", "縦のストップ位置を決めます。中心の赤い〇を狙ってください！", "セットオン (SET ON)", () => {
@@ -886,7 +831,6 @@ function startAngleSelection() {
 }
 
 function triggerSetOnAnimation() {
-    // 全体回転演出
     let rot = 0;
     const timer = setInterval(() => {
         rot += 0.2;
@@ -907,7 +851,7 @@ function openPowerGauge(type) {
     
     STATE.gaugeRunning = true;
     STATE.gaugePos = 0;
-    STATE.gaugeSpeed = Math.random() * 3 + 2; // スピードランダム
+    STATE.gaugeSpeed = Math.random() * 3 + 2;
 
     const curP = STATE.players[STATE.turnIndex];
     if (type === 'POWER') {
@@ -927,7 +871,6 @@ function stopGauge() {
 
     if (STATE.phase === 'ANGLE_V' || STATE.phase === 'POWER') {
         STATE.powerScore = val;
-        // 相手のガードへ
         STATE.phase = 'GUARD';
         showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "相手ガード判定へ", () => {
             openPowerGauge('GUARD');
@@ -953,21 +896,24 @@ function resolveBattleResult() {
         targetP.hp = Math.max(0, targetP.hp - damage);
         msg += `<b style="color:#ff3333;">${targetP.name} に ${damage} のダメージ！</b>`;
         
-        // 被弾シェイク
         document.getElementById('app-container').classList.add('shake');
         setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 400);
     }
 
-    // クリティカル・抜き取り物理演出
     if (STATE.powerScore === 100) {
         msg += `<br><b style="color:#ffff00;">★ CRITICAL BREAK ★</b>`;
     }
 
-    // 物理的に力（Impulse）を加える
+    // ★【修正ポイント3】ここで物理計算を起動し、衝撃を加える
+    activatePhysics();
+
     if (STATE.selectedBlock) {
-        const pushForce = (STATE.powerScore / 50) * 5;
+        const pushForce = (STATE.powerScore / 50) * 8;
+        const dirZ = STATE.selectedBlock.isRotated ? 0 : -pushForce;
+        const dirX = STATE.selectedBlock.isRotated ? -pushForce : 0;
+
         STATE.selectedBlock.body.applyImpulse(
-            new CANNON.Vec3(0, 0, -pushForce),
+            new CANNON.Vec3(dirX, 0, dirZ),
             STATE.selectedBlock.body.position
         );
         turnP.score++;
@@ -982,12 +928,8 @@ function resolveBattleResult() {
     });
 }
 
-/* ==========================================================================
-   7. アイテムシステム＆効果発動
-   ========================================================================== */
-
 function rollItemReward(player) {
-    if (Math.random() < 0.5) return; // 50%で獲得
+    if (Math.random() < 0.5) return;
 
     const itemList = ['ojama', 'sneeze', 'renzoku', 'pass', 'ganriki', 'rob'];
     const reward = itemList[Math.floor(Math.random() * itemList.length)];
@@ -1013,7 +955,6 @@ function useItem(type) {
         document.getElementById('spit-overlay').classList.remove('hidden');
         showPopup("アイテム発動", "【くしゃみ】発動！画面が汚れた！", "OK");
     } else if (type === 'ganriki') {
-        // 最も負荷がかかっていないブロック（Y座標が高く動きがないもの等）を光らせる
         const target = blocks[blocks.length - 1];
         if (target) {
             target.mesh.material.forEach(m => m.color.setHex(0x00ffff));
@@ -1029,14 +970,11 @@ function useItem(type) {
     }
 }
 
-/* ==========================================================================
-   8. 倒壊判定・勝敗・リスタート
-   ========================================================================== */
-
+// ★【修正ポイント4】判定基準の緩和（台座から落ちるか大きく傾くまで倒壊扱いしない）
 function checkCollapse() {
-    // 高さが崩れたブロックがあるかチェック
     for (let b of blocks) {
-        if (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 6 || Math.abs(b.body.position.z) > 6) {
+        // 床に落ちるか、回転角度（傾き）が大きくなった場合のみ倒壊判定
+        if (b.body.position.y < 0 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4) {
             triggerGameOver();
             break;
         }
@@ -1047,7 +985,6 @@ function triggerGameOver() {
     STATE.mode = 'OVER';
     clearInterval(STATE.timerInterval);
 
-    // スコア計算 (獲得数 + 残りHP)
     const rankings = [...STATE.players].sort((a, b) => (b.score + b.hp) - (a.score + a.hp));
     const winner = rankings[0];
 
@@ -1059,7 +996,6 @@ function triggerGameOver() {
     });
 }
 
-// 汎用ポップアップヘルパー
 function showPopup(title, body, btnText = "OK", callback = null) {
     const overlay = document.getElementById('popup-overlay');
     document.getElementById('popup-title').innerText = title;
