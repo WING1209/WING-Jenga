@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ジェンガアタック</title>
+    <title>ジェンガアタック オンライン</title>
     <!-- Three.js & Cannon.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
@@ -187,7 +187,7 @@
         .hidden { display: none !important; }
 
         .title-logo {
-            font-size: 38px;
+            font-size: 36px;
             font-weight: 900;
             color: #ff3333;
             text-shadow: 0 0 10px #ff0000, 3px 3px 0px #fff;
@@ -229,7 +229,7 @@
         input[type="text"] {
             width: 100%;
             padding: 12px;
-            font-size: 16px;
+            font-size: 14px;
             text-align: center;
             border-radius: 4px;
             border: 1px solid #666;
@@ -361,7 +361,7 @@
     </div>
 
     <div id="title-screen" class="overlay">
-        <div class="title-logo">ジェンガアタックVer1.3</div>
+        <div class="title-logo">ジェンガアタックVer1.0<br><span style="font-size:18px; color:#fff;">Online (JSONbin)</span></div>
         <div class="blink-text" onclick="showMenu()">TAP TO START</div>
     </div>
 
@@ -395,15 +395,16 @@
 
         <!-- ゲスト：接続ID入力 -->
         <div class="menu-box hidden" id="menu-guest-id">
-            <h3>接続ID入力 (4桁)</h3>
-            <input type="text" id="guest-id-input" maxlength="4" placeholder="1234">
+            <h3>ルームID入力</h3>
+            <p style="font-size:10px; color:#aaa;">ホストから共有されたIDを貼り付けてください</p>
+            <input type="text" id="guest-id-input" placeholder="ルームID (Bin ID)">
             <button class="menu-btn" onclick="connectGuest()">接続</button>
         </div>
 
-        <!-- ロビー待機画面（ホスト・ゲスト共通） -->
+        <!-- ロビー待機画面 -->
         <div class="menu-box hidden" id="menu-lobby">
             <h3>接続待機中...</h3>
-            <div class="blink-text" style="font-size:24px;" id="room-id-display">ID: ----</div>
+            <div style="font-size:11px; color:#ffcc00; word-break:break-all;" id="room-id-display">ID: 読み込み中...</div>
             <div id="joined-players-list" style="text-align:left; font-size:12px; margin:10px 0; max-height:120px; overflow-y:auto;"></div>
             <div id="lobby-waiting-msg" style="font-size:12px; color:#ffcc00;">プレイヤーの参加を待っています...</div>
             <button class="menu-btn hidden" id="btn-start-roulette" onclick="startOrderRoulette()">順番決めルーレット開始</button>
@@ -432,6 +433,8 @@
 </div>
 
 <script>
+const JSONBIN_API_KEY = "$2a$10$p.cJHnRnt3oBn8Mtny/WpOekHU3EyeeZj0MUaHY2sDWoFNV1wjIN.";
+
 const STATE = {
     mode: 'TITLE',
     isHost: false,
@@ -473,6 +476,7 @@ let scene, camera, renderer, world;
 let blocks = [];
 let handMeshes = [];
 let trajectoryLine = null;
+let pollingTimer = null;
 
 function init3D() {
     const container = document.getElementById('canvas-container');
@@ -750,7 +754,7 @@ function setPlayerCount(num) {
     document.getElementById('menu-name').classList.remove('hidden');
 }
 
-// プレイヤー名決定後の処理
+// プレイヤー名決定
 function submitName() {
     const input = document.getElementById('player-name-input').value.trim();
     const regex = /^[ぁ-んー0-9]+$/;
@@ -764,138 +768,182 @@ function submitName() {
     document.getElementById('menu-name').classList.add('hidden');
 
     if (STATE.isHost) {
-        // ホストの場合：IDを発行して自分をリストに登録し、ロビー待機画面へ
-        STATE.players.push({
-            name: STATE.myName,
-            hp: 100, maxHp: 100, score: 0,
-            items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-            handSkin: HAND_SKINS[0],
-            isReady: false
-        });
-        STATE.myIndex = 0;
-
-        STATE.roomId = Math.floor(1000 + Math.random() * 9000);
-        document.getElementById('room-id-display').innerText = `ID: ${STATE.roomId}`;
-        document.getElementById('menu-lobby').classList.remove('hidden');
-        
-        updateLobbyUI();
+        createRoomOnJSONBin();
     } else {
-        // ゲストの場合：ID入力画面へ
         document.getElementById('menu-guest-id').classList.remove('hidden');
     }
 }
 
-// ゲストがIDを入力して接続する処理
-function connectGuest() {
-    const id = document.getElementById('guest-id-input').value.trim();
-    if (id.length === 4) {
-        STATE.roomId = id;
-        document.getElementById('menu-guest-id').classList.add('hidden');
+// JSONbinに新規ルームを作成（ホスト）
+async function createRoomOnJSONBin() {
+    STATE.players.push({
+        name: STATE.myName,
+        hp: 100, maxHp: 100, score: 0,
+        items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
+        handSkin: HAND_SKINS[0],
+        isReady: false
+    });
+    STATE.myIndex = 0;
+
+    const initialData = {
+        players: STATE.players,
+        phase: 'LOBBY',
+        turnIndex: 0
+    };
+
+    try {
+        const res = await fetch("https://api.jsonbin.io/v3/b", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Master-Key": JSONBIN_API_KEY,
+                "X-Bin-Private": "false"
+            },
+            body: JSON.stringify(initialData)
+        });
+        const data = await res.json();
+        STATE.roomId = data.metadata.id;
+        
         document.getElementById('room-id-display').innerText = `ID: ${STATE.roomId}`;
         document.getElementById('menu-lobby').classList.remove('hidden');
         
-        // ゲスト自身をリストに参加者として正しく追加する
-        STATE.players.push({
-            name: STATE.myName,
-            hp: 100, maxHp: 100, score: 0,
-            items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-            handSkin: HAND_SKINS[STATE.players.length % HAND_SKINS.length],
-            isReady: false
-        });
-        STATE.myIndex = STATE.players.length - 1;
-
         updateLobbyUI();
-        alert("ホストへの接続に成功しました！");
-    } else {
-        alert("4桁のIDを入力してください");
+        startPolling();
+    } catch(e) {
+        alert("ルームの作成に失敗しました。");
+        console.error(e);
     }
 }
 
-// ロビー画面のUI更新（参加プレイヤーの名前を正しく順次追加表示・規定人数でボタン出現）
-function updateLobbyUI() {
-    const list = document.getElementById('joined-players-list');
-    list.innerHTML = "<b>参加者一覧:</b><br>" + STATE.players.map(p => `・${p.name}`).join('<br>');
-    
-    // モックアップとして、ホスト画面でプレイヤー人数が足りない場合にデモ参加者を自動追加してテストできるようにする
-    if (STATE.isHost && STATE.players.length < STATE.playerCount) {
-        setTimeout(() => {
-            if (STATE.players.length < STATE.playerCount) {
-                const nextId = STATE.players.length + 1;
-                STATE.players.push({
-                    name: `ゲスト${nextId}`,
-                    hp: 100, maxHp: 100, score: 0,
-                    items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-                    handSkin: HAND_SKINS[(nextId-1) % HAND_SKINS.length],
-                    isReady: false
-                });
-                updateLobbyUI();
-            }
-        }, 1000);
+// ゲストが既存ルームに参加
+async function connectGuest() {
+    const binId = document.getElementById('guest-id-input').value.trim();
+    if (!binId) {
+        alert("ルームIDを入力してください");
+        return;
     }
 
+    try {
+        const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+            headers: { "X-Master-Key": JSONBIN_API_KEY }
+        });
+        if (!res.ok) throw new Error("ルームが見つかりません");
+        
+        const data = await res.json();
+        const roomData = data.record;
+
+        STATE.roomId = binId;
+        STATE.players = roomData.players;
+
+        // 自分が未参加なら追加
+        if (!STATE.players.some(p => p.name === STATE.myName)) {
+            STATE.players.push({
+                name: STATE.myName,
+                hp: 100, maxHp: 100, score: 0,
+                items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
+                handSkin: HAND_SKINS[STATE.players.length % HAND_SKINS.length],
+                isReady: false
+            });
+            STATE.myIndex = STATE.players.length - 1;
+            await updateRoomData({ players: STATE.players, phase: roomData.phase, turnIndex: roomData.turnIndex });
+        } else {
+            STATE.myIndex = STATE.players.findIndex(p => p.name === STATE.myName);
+        }
+
+        document.getElementById('menu-guest-id').classList.add('hidden');
+        document.getElementById('room-id-display').innerText = `ID: ${STATE.roomId}`;
+        document.getElementById('menu-lobby').classList.remove('hidden');
+
+        updateLobbyUI();
+        startPolling();
+        alert("ルームに接続しました！");
+    } catch(e) {
+        alert("接続失敗：正しいルームIDを確認してください。");
+        console.error(e);
+    }
+}
+
+// JSONbinデータを更新する共通関数
+async function updateRoomData(newData) {
+    if (!STATE.roomId) return;
+    try {
+        await fetch(`https://api.jsonbin.io/v3/b/${STATE.roomId}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Master-Key": JSONBIN_API_KEY
+            },
+            body: JSON.stringify(newData)
+        });
+    } catch(e) {
+        console.error("Data update error", e);
+    }
+}
+
+// 定期的なデータ同期（ポーリング）
+function startPolling() {
+    if (pollingTimer) clearInterval(pollingTimer);
+    pollingTimer = setInterval(async () => {
+        if (!STATE.roomId) return;
+        try {
+            const res = await fetch(`https://api.jsonbin.io/v3/b/${STATE.roomId}/latest`, {
+                headers: { "X-Master-Key": JSONBIN_API_KEY }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const roomData = data.record;
+                STATE.players = roomData.players;
+
+                if (STATE.mode === 'LOBBY') {
+                    updateLobbyUI();
+                    if (roomData.phase === 'GAME' && STATE.mode !== 'GAME') {
+                        clearInterval(pollingTimer);
+                        startGame();
+                    }
+                }
+            }
+        } catch(e) {
+            console.error("Polling error", e);
+        }
+    }, 3000);
+}
+
+function updateLobbyUI() {
+    const list = document.getElementById('joined-players-list');
+    list.innerHTML = `<b>参加者一覧 (${STATE.players.length}人):</b><br>` + STATE.players.map(p => `・${p.name}`).join('<br>');
+    
     const waitingMsg = document.getElementById('lobby-waiting-msg');
     const startBtn = document.getElementById('btn-start-roulette');
 
-    if (STATE.players.length >= STATE.playerCount) {
-        waitingMsg.innerText = "規定人数に達しました！";
+    if (STATE.players.length >= 2) { // 2人以上集まったらホストが開始可能
+        waitingMsg.innerText = "プレイヤーが揃いました！";
         if (STATE.isHost) {
-            startBtn.classList.remove('hidden'); // ホストのみルーレット開始ボタンが出現
+            startBtn.classList.remove('hidden');
         } else {
-            waitingMsg.innerText += " ホストがゲームを開始するのを待っています...";
+            waitingMsg.innerText += " ホストがルーレットを開始するのを待っています...";
         }
     } else {
-        waitingMsg.innerText = `接続待ち... (${STATE.players.length}/${STATE.playerCount}人)`;
+        waitingMsg.innerText = `接続待ち... (現在 ${STATE.players.length} 人)`;
         startBtn.classList.add('hidden');
     }
 }
 
-// 1. 順番決めルーレット開始（全員にルーレット回転を表示）
-function startOrderRoulette() {
+// ルーレット開始
+async function startOrderRoulette() {
     document.getElementById('menu-screen').classList.add('hidden');
     
-    let speed = 50;
-    let idx = 0;
-    const overlay = document.getElementById('popup-overlay');
-    overlay.classList.remove('hidden');
-    
-    document.getElementById('popup-title').innerText = "順番決めルーレット";
-    
-    const rouletteTimer = setInterval(() => {
-        document.getElementById('popup-body').innerText = `▶ ${STATE.players[idx % STATE.players.length].name} ◀`;
-        idx++;
-    }, speed);
-
-    const btn = document.getElementById('popup-btn');
-    if (STATE.isHost) {
-        btn.innerText = "ストップ！（ホストのみ停止可能）";
-        btn.classList.remove('hidden');
-        btn.onclick = () => {
-            clearInterval(rouletteTimer);
-            stopRouletteResult();
-        };
-    } else {
-        btn.innerText = "ホストがルーレットを停止するのを待っています...";
-        btn.classList.add('hidden');
-    }
-}
-
-// ルーレット停止後の処理
-function stopRouletteResult() {
-    document.getElementById('app-container').classList.add('shake');
-    setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 500);
-
-    // シャッフルして順番を決定
+    // シャッフルして順番決定
     STATE.players.sort(() => Math.random() - 0.5);
-    STATE.players.forEach(p => p.isReady = false); // 準備状態リセット
+    STATE.players.forEach(p => p.isReady = false);
     
+    await updateRoomData({ players: STATE.players, phase: 'CONFIRM', turnIndex: 0 });
     showPlayerConfirmationScreen();
 }
 
-// 2. 順番の一覧表示と各プレイヤーの確認ボタン
 function showPlayerConfirmationScreen() {
     document.getElementById('popup-title').innerText = "決定した順番の確認";
     
-    let html = `<div style="font-size:12px; margin-bottom:8px; color:#aaa;">各プレイヤーは自分の名前のボタンを押して確認を完了してください：</div>`;
+    let html = `<div style="font-size:11px; margin-bottom:8px; color:#aaa;">自分の名前のボタンを押して確認を完了してください：</div>`;
     html += `<div style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; text-align:left;">`;
     
     STATE.players.forEach((p, i) => {
@@ -912,15 +960,12 @@ function showPlayerConfirmationScreen() {
     const btn = document.getElementById('popup-btn');
 
     if (allReady && STATE.isHost) {
-        // 3. 全プレイヤーの確認が終わったら、ホストのみにゲーム開始ボタンが出現
-        html += `<br><button class="menu-btn" style="background:#ff3333; width:100%;" onclick="executeGameStart()">全プレイヤー確認完了 - ゲームスタート！</button>`;
+        html += `<br><button class="menu-btn" style="background:#ff3333; width:100%;" onclick="executeGameStart()">全員確認完了 - ゲームスタート！</button>`;
         btn.classList.add('hidden');
     } else {
         btn.classList.add('hidden');
         if (!STATE.isHost && allReady) {
             html += `<br><div style="color:#ffcc00; font-size:12px; text-align:center;">ホストのゲーム開始をお待ちください...</div>`;
-        } else if (!allReady) {
-            html += `<br><div style="color:#aaa; font-size:11px; text-align:center;">全員が確認ボタンを押すとホストに開始ボタンが現れます。</div>`;
         }
     }
 
@@ -928,18 +973,22 @@ function showPlayerConfirmationScreen() {
     document.getElementById('popup-overlay').classList.remove('hidden');
 }
 
-window.confirmPlayerReady = function(index) {
+window.confirmPlayerReady = async function(index) {
     STATE.players[index].isReady = true;
+    await updateRoomData({ players: STATE.players, phase: 'CONFIRM', turnIndex: 0 });
     showPlayerConfirmationScreen();
 };
 
-// 4. ホストがゲーム開始ボタンをタップし、全員一斉にゲームスタート
-function executeGameStart() {
+async function executeGameStart() {
+    await updateRoomData({ players: STATE.players, phase: 'GAME', turnIndex: 0 });
+    if (pollingTimer) clearInterval(pollingTimer);
     closePopup();
     startGame();
 }
 
 function startGame() {
+    document.getElementById('menu-screen').classList.add('hidden');
+    document.getElementById('popup-overlay').classList.add('hidden');
     STATE.mode = 'GAME';
     buildJengaTower();
     createPlayerHands();
@@ -1007,6 +1056,7 @@ function updateGUI() {
 // ブロック選択タップ判定
 window.addEventListener('pointerdown', (e) => {
     if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
+    if (STATE.turnIndex !== STATE.myIndex) return; // 自分のターンのみ操作可能
 
     const rect = renderer.domElement.getBoundingClientRect();
     if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) return;
@@ -1165,10 +1215,6 @@ function resolveBattleResult() {
         setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 400);
     }
 
-    if (STATE.powerScore === 100) {
-        msg += `<br><b style="color:#ffff00;">★ CRITICAL BREAK ★</b>`;
-    }
-
     activatePhysics();
 
     if (STATE.selectedBlock) {
@@ -1181,7 +1227,6 @@ function resolveBattleResult() {
             STATE.selectedBlock.body.position
         );
         turnP.score++;
-        rollItemReward(turnP);
     }
 
     showPopup("結果発表", msg, "ターン終了", () => {
@@ -1190,20 +1235,6 @@ function resolveBattleResult() {
         }
         nextTurn();
     });
-}
-
-function rollItemReward(player) {
-    if (Math.random() < 0.5) return;
-
-    const itemList = ['ojama', 'sneeze', 'renzoku', 'pass', 'ganriki', 'rob'];
-    const reward = itemList[Math.floor(Math.random() * itemList.length)];
-    
-    if ((player.items[reward] || 0) < 5) {
-        player.items[reward] = (player.items[reward] || 0) + 1;
-        setTimeout(() => {
-            showPopup("アイテムGET！", `ルーレットの結果...<br><b>【${reward.toUpperCase()}】</b> を獲得！`, "OK");
-        }, 1000);
-    }
 }
 
 function useItem(type) {
@@ -1218,17 +1249,6 @@ function useItem(type) {
     } else if (type === 'sneeze') {
         document.getElementById('spit-overlay').classList.remove('hidden');
         showPopup("アイテム発動", "【くしゃみ】発動！画面が汚れた！", "OK");
-    } else if (type === 'ganriki') {
-        const target = blocks[blocks.length - 1];
-        if (target) {
-            target.mesh.material.forEach(m => m.color.setHex(0x00ffff));
-        }
-        showPopup("アイテム発動", "【眼力】発動！安全なブロックが青く輝いた！", "OK");
-    } else if (type === 'rob') {
-        const targetP = STATE.players[(STATE.turnIndex + 1) % STATE.players.length];
-        targetP.hp = Math.max(0, targetP.hp - 10);
-        p.hp += 10;
-        showPopup("アイテム発動", `【強奪】発動！ ${targetP.name} から体力を奪い取った！`, "OK");
     } else {
         showPopup("アイテム発動", `【${type.toUpperCase()}】を発動しました！`, "OK");
     }
