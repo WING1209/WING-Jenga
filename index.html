@@ -112,7 +112,7 @@
             display: flex;
             gap: 6px;
             overflow-x: auto;
-            width: 70%;
+            width: 100%;
         }
         .player-card {
             background: #2a2a3a;
@@ -132,16 +132,6 @@
             width: 100%;
             margin-top: 3px;
             border-radius: 3px;
-        }
-
-        .timer-box {
-            font-size: 20px;
-            font-weight: bold;
-            color: #ffcc00;
-            background: #000;
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: 2px solid #ffcc00;
         }
 
         .item-grid {
@@ -276,18 +266,6 @@
             color: #fff;
         }
 
-        #huge-count {
-            position: absolute;
-            top: 35%; left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 90px;
-            font-weight: 900;
-            color: #ff0055;
-            text-shadow: 0 0 20px #ff0000;
-            z-index: 50;
-            pointer-events: none;
-        }
-
         #turn-banner {
             position: absolute;
             top: 50%; left: 50%;
@@ -314,7 +292,7 @@
             border: 2px solid #ff3333;
             padding: 8px 16px;
             border-radius: 20px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: #fff;
             z-index: 85;
@@ -322,7 +300,8 @@
             pointer-events: none;
             box-shadow: 0 0 15px rgba(255, 51, 51, 0.6);
             display: flex;
-            gap: 15px;
+            gap: 12px;
+            white-space: nowrap;
         }
 
         #power-gauge-overlay {
@@ -436,7 +415,6 @@
         <canvas id="three-canvas"></canvas>
         <div class="cam-arrow" id="cam-left" onclick="rotateCam(-1)">‹</div>
         <div class="cam-arrow" id="cam-right" onclick="rotateCam(1)">›</div>
-        <div id="huge-count" class="hidden">40</div>
         <div id="turn-banner" class="hidden">〇〇の番です</div>
         <div id="central-battle-status" class="hidden"></div>
         <div id="spit-overlay" class="hidden"></div>
@@ -445,7 +423,6 @@
     <div id="gui-container">
         <div class="gui-row">
             <div class="player-list-mini" id="gui-player-list"></div>
-            <div class="timer-box" id="gui-timer">40</div>
         </div>
 
         <div class="item-grid">
@@ -464,7 +441,7 @@
 
     <!-- ① タイトル画面 -->
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタック２</div>
+        <div class="title-logo">ジェンガアタック３</div>
         <div class="blink-text">スタート</div>
     </div>
 
@@ -549,8 +526,6 @@ const STATE = {
     myIndex: 0,
     players: [],
     turnIndex: 0,
-    timer: 40,
-    timerInterval: null,
     selectedBlock: null,
     camAngle: 0,
     camHeight: 12,
@@ -717,13 +692,15 @@ function buildJengaTower() {
             }
             world.addBody(body);
 
-            blocks.push({
+            const blockData = {
                 mesh: mesh,
                 body: body,
                 id: `block_${val}_${j}`,
                 tier: val + 1,
                 isRotated: isRotated
-            });
+            };
+            mesh.userData.blockRef = blockData;
+            blocks.push(blockData);
         }
     }
     STATE.physicsActive = false;
@@ -865,11 +842,14 @@ function handleBlockSelection(clientX, clientY) {
 
     if (intersects.length > 0) {
         let hitObject = intersects[0].object;
-        while (hitObject && !blocks.some(b => b.mesh === hitObject) && hitObject.parent) {
+        let blockObj = null;
+        while (hitObject) {
+            if (hitObject.userData && hitObject.userData.blockRef) {
+                blockObj = hitObject.userData.blockRef;
+                break;
+            }
             hitObject = hitObject.parent;
         }
-
-        const blockObj = blocks.find(b => b.mesh === hitObject);
 
         if (blockObj) {
             STATE.selectedBlock = blockObj;
@@ -1182,6 +1162,7 @@ function startPolling() {
                 STATE.players = room.players;
                 if (room.maxPlayers) STATE.maxPlayers = room.maxPlayers;
                 if (room.phase) STATE.phase = room.phase;
+                if (room.turnIndex !== undefined) STATE.turnIndex = room.turnIndex;
                 if (room.targetPlayerIndex !== undefined) STATE.targetPlayerIndex = room.targetPlayerIndex;
                 if (room.powerScore !== undefined) STATE.powerScore = room.powerScore;
                 if (room.guardScore !== undefined) STATE.guardScore = room.guardScore;
@@ -1195,18 +1176,21 @@ function startPolling() {
                 } else if (STATE.mode === 'ORDER_CONFIRM') {
                     showOrderScreen();
                 } else if (STATE.mode === 'GAME') {
-                    if (room.phase === 'GUARD' && document.getElementById('power-gauge-overlay').classList.contains('hidden') && !STATE.gaugeRunning) {
+                    updateGUI();
+                    if (room.phase === 'GUARD') {
                         if (STATE.myIndex === STATE.targetPlayerIndex) {
-                            closePopup();
-                            openPowerGauge('GUARD');
+                            if (document.getElementById('power-gauge-overlay').classList.contains('hidden') && !STATE.gaugeRunning) {
+                                closePopup();
+                                openPowerGauge('GUARD');
+                            }
                         } else {
-                            showPleaseWaitPopup("相手の防御操作を待っています...");
+                            const defPlayer = STATE.players[STATE.targetPlayerIndex] ? STATE.players[STATE.targetPlayerIndex].name : "相手";
+                            showPleaseWaitPopup(`${defPlayer}の防御操作を待っています...`);
                         }
                     }
                 }
 
                 if (room.phase === 'GAME' && STATE.mode !== 'GAME') {
-                    if (pollingTimer) clearInterval(pollingTimer);
                     closePopup();
                     startGame();
                 }
@@ -1299,7 +1283,6 @@ async function executeGameStart() {
         guardScore: 0
     });
 
-    if (pollingTimer) clearInterval(pollingTimer);
     closePopup();
     startGame();
 }
@@ -1316,43 +1299,38 @@ function startGame() {
 
 function startTurn() {
     STATE.phase = 'SELECT';
-    STATE.timer = 40;
-    document.getElementById('huge-count').classList.add('hidden');
     
     updateGUI();
-    updateCentralStatus();
 
     const curP = STATE.players[STATE.turnIndex];
     const banner = document.getElementById('turn-banner');
-    banner.innerText = `${curP.name} の番です`;
-    banner.classList.remove('hidden');
-    setTimeout(() => {
-        banner.classList.add('hidden');
-    }, 1800);
-
-    if (STATE.timerInterval) clearInterval(STATE.timerInterval);
-    STATE.timerInterval = setInterval(() => {
-        STATE.timer--;
-        document.getElementById('gui-timer').innerText = STATE.timer;
-        
-        if (STATE.timer <= 5 && STATE.timer > 0) {
-            const hc = document.getElementById('huge-count');
-            hc.classList.remove('hidden');
-            hc.innerText = STATE.timer;
-        }
-
-        if (STATE.timer <= 0) {
-            clearInterval(STATE.timerInterval);
-            nextTurn();
-        }
-    }, 1000);
+    if (curP) {
+        banner.innerText = `${curP.name} の番です`;
+        banner.classList.remove('hidden');
+        setTimeout(() => {
+            banner.classList.add('hidden');
+        }, 1800);
+    }
 }
 
-function nextTurn() {
-    clearInterval(STATE.timerInterval);
+async function nextTurn() {
     document.getElementById('spit-overlay').classList.add('hidden');
     if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
     STATE.turnIndex = (STATE.turnIndex + 1) % STATE.players.length;
+    
+    if (STATE.isHost) {
+        await updateRoomData({
+            pin: STATE.roomPin,
+            maxPlayers: STATE.maxPlayers,
+            players: STATE.players,
+            phase: 'GAME',
+            turnIndex: STATE.turnIndex,
+            targetPlayerIndex: 0,
+            powerScore: 0,
+            guardScore: 0
+        });
+    }
+    
     startTurn();
 }
 
@@ -1388,7 +1366,9 @@ function updateCentralStatus() {
     const cs = document.getElementById('central-battle-status');
     cs.classList.remove('hidden');
     const curP = STATE.players[STATE.turnIndex] || { name: 'Player', hp: 100 };
-    const targetP = STATE.players[STATE.targetPlayerIndex] || STATE.players[(STATE.turnIndex + 1) % STATE.players.length] || curP;
+    const defaultTarget = (STATE.turnIndex + 1) % (STATE.players.length || 1);
+    const targetIdx = STATE.targetPlayerIndex !== undefined ? STATE.targetPlayerIndex : defaultTarget;
+    const targetP = STATE.players[targetIdx] || curP;
     
     cs.innerHTML = `
         <span style="color:#ffcc00;">攻: ${curP.name} (HP:${curP.hp})</span>
@@ -1464,7 +1444,7 @@ function startAngleSelectionV() {
 
 function showPleaseWaitPopup(text) {
     let html = `<div class="blink-text" style="font-size:18px; color:#ffcc00; margin:15px 0;">⏳ ${text} ⏳</div>`;
-    showPopup("プレーズウエイト", html, "", null);
+    showPopup("画面待機中", html, "", null);
 }
 
 function openPowerGauge(type) {
@@ -1479,7 +1459,8 @@ function openPowerGauge(type) {
 
     if (type === 'GUARD') {
         if (STATE.myIndex !== STATE.targetPlayerIndex && STATE.players.length > 1) {
-            showPleaseWaitPopup("相手の防御操作を待っています...");
+            const defPlayer = STATE.players[STATE.targetPlayerIndex] ? STATE.players[STATE.targetPlayerIndex].name : "相手";
+            showPleaseWaitPopup(`${defPlayer}の防御操作を待っています...`);
             return;
         }
     }
@@ -1544,7 +1525,8 @@ async function stopGauge() {
         showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "", null);
         setTimeout(() => {
             if (STATE.myIndex !== STATE.targetPlayerIndex && STATE.players.length > 1) {
-                showPleaseWaitPopup("相手の防御操作を待っています...");
+                const defPlayer = STATE.players[STATE.targetPlayerIndex] ? STATE.players[STATE.targetPlayerIndex].name : "相手";
+                showPleaseWaitPopup(`${defPlayer}の防御操作を待っています...`);
             } else if (STATE.players.length === 1) {
                 openPowerGauge('GUARD');
             }
@@ -1726,7 +1708,6 @@ function checkCollapse() {
 
 function triggerGameOver() {
     STATE.mode = 'OVER';
-    clearInterval(STATE.timerInterval);
 
     const rankings = [...STATE.players].sort((a, b) => (b.score + b.hp) - (a.score + a.hp));
     const winner = rankings[0];
