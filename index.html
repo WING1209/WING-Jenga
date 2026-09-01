@@ -92,6 +92,22 @@
         #cam-up { top: 10px; left: 50%; transform: translateX(-50%); }
         #cam-down { bottom: 10px; left: 50%; transform: translateX(-50%); }
 
+        /* 左上に設置した遠・近切り替えボタン */
+        #cam-toggle-zoom {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 25;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #ffcc00;
+            color: #ffcc00;
+            padding: 6px 10px;
+            font-size: 11px;
+            border-radius: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
         #gui-container {
             width: 100%;
             height: 35%;
@@ -426,6 +442,7 @@
 <div id="app-container">
     <div id="canvas-container">
         <canvas id="three-canvas"></canvas>
+        <div id="cam-toggle-zoom" onclick="toggleZoomMode()">🔍 近/遠表示</div>
         <div class="cam-arrow" id="cam-left" onclick="rotateCam(-1)">‹</div>
         <div class="cam-arrow" id="cam-right" onclick="rotateCam(1)">›</div>
         <div class="cam-arrow" id="cam-up">▲</div>
@@ -452,13 +469,13 @@
         </div>
 
         <div class="controls-info">
-            💡 左右矢印: 回転 | 上下矢印: 高さ移動 | タップ: ブロック決定 / 近接切り替え
+            💡 左右矢印: 回転 | 上下矢印: 高さ移動 | タップ: ブロック決定
         </div>
     </div>
 
     <!-- タイトル画面 -->
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer1.2</div>
+        <div class="title-logo">ジェンガアタックVer1.3</div>
         <div class="blink-text">スタート</div>
     </div>
 
@@ -765,12 +782,17 @@ function updateCameraPosition() {
     camera.lookAt(0, STATE.isZoomed ? STATE.camHeight : 6, 0);
 }
 
+function toggleZoomMode() {
+    STATE.isZoomed = !STATE.isZoomed;
+    updateCameraPosition();
+}
+
 function rotateCam(dir) {
     STATE.camAngle += dir * (Math.PI / 4);
     updateCameraPosition();
 }
 
-/* --- タッチ/ポインター制御（修正版：タップ感度の安定化と不具合修正） --- */
+/* --- タッチ/ポインター制御（遠近トグル分離・ブロック判定の安定化） --- */
 let touchStartX = 0;
 let touchStartY = 0;
 let touchStartTime = 0;
@@ -822,8 +844,8 @@ function initTouchControls() {
         const elapsed = Date.now() - touchStartTime;
         const dist = Math.hypot(clientX - touchStartX, clientY - touchStartY);
 
-        // タップ判定（許容移動幅を30pxまで緩和）
-        if (elapsed < 400 && dist < 30) {
+        // スワイプではなくタップの判定（判定時間を500ms、距離を25px以内に調整）
+        if (elapsed < 500 && dist < 25) {
             handleBlockSelection(clientX, clientY);
         }
     };
@@ -863,10 +885,6 @@ function handleBlockSelection(clientX, clientY) {
             STATE.selectedBlockId = blockObj.id;
             showJengaConfirmPopup(blockObj);
         }
-    } else {
-        // 空白部分タップ時はズーム切り替え
-        STATE.isZoomed = !STATE.isZoomed;
-        updateCameraPosition();
     }
 }
 
@@ -1568,7 +1586,6 @@ function openPowerGauge(type) {
 async function stopGauge() {
     if (!STATE.gaugeRunning) return;
     
-    // 権限チェック：防御フェーズは防御対象者のみ、それ以外は攻撃者のみ操作可能
     if (STATE.phase === 'GUARD') {
         if (STATE.myIndex !== STATE.targetPlayerIndex) {
             alert("あなたではなく、防御プレイヤーの操作番です！");
