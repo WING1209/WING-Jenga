@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ジェンガアタック</title>
     <!-- Three.js & Cannon.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -12,10 +12,10 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            -webkit-touch-callout: none;
             margin: 0;
             padding: 0;
             font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            touch-action: none;
         }
         body, html {
             width: 100%;
@@ -27,7 +27,6 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            touch-action: manipulation;
         }
 
         #app-container {
@@ -73,6 +72,8 @@
 
         .cam-arrow {
             position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
             width: 45px;
             height: 45px;
             background: rgba(255, 255, 255, 0.25);
@@ -85,28 +86,9 @@
             align-items: center;
             z-index: 20;
             cursor: pointer;
-            touch-action: none;
         }
-        #cam-left { top: 50%; left: 10px; transform: translateY(-50%); }
-        #cam-right { top: 50%; right: 10px; transform: translateY(-50%); }
-        #cam-up { top: 10px; left: 50%; transform: translateX(-50%); }
-        #cam-down { bottom: 10px; left: 50%; transform: translateX(-50%); }
-
-        /* 左上に設置した遠・近切り替えボタン */
-        #cam-toggle-zoom {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 25;
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid #ffcc00;
-            color: #ffcc00;
-            padding: 6px 10px;
-            font-size: 11px;
-            border-radius: 15px;
-            font-weight: bold;
-            cursor: pointer;
-        }
+        #cam-left { left: 10px; }
+        #cam-right { right: 10px; }
 
         #gui-container {
             width: 100%;
@@ -206,11 +188,12 @@
             align-items: center;
             z-index: 100;
             padding: 20px;
+            cursor: pointer;
         }
         .popup-transparent-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.4);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -250,6 +233,7 @@
             flex-direction: column;
             gap: 12px;
             text-align: center;
+            cursor: default;
         }
         .menu-btn {
             background: #444;
@@ -260,7 +244,6 @@
             font-size: 15px;
             font-weight: bold;
             cursor: pointer;
-            touch-action: manipulation;
         }
         .menu-btn:active { background: #666; }
         
@@ -291,8 +274,6 @@
             border: 1px solid #666;
             background: #111;
             color: #fff;
-            user-select: text;
-            -webkit-user-select: text;
         }
 
         #huge-count {
@@ -401,6 +382,13 @@
             text-shadow: 0 0 10px #00ffff;
         }
 
+        .target-select-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
         #spit-overlay {
             position: absolute;
             top:0; left:0; width:100%; height:100%;
@@ -411,7 +399,9 @@
                         radial-gradient(circle at 50% 20%, rgba(220,255,0,0.3) 0%, transparent 15%);
         }
 
-        .shake { animation: shake 0.3s infinite; }
+        .shake {
+            animation: shake 0.3s infinite;
+        }
         @keyframes shake {
             0% { transform: translate(0, 0); }
             20% { transform: translate(-10px, 5px); }
@@ -421,7 +411,9 @@
             100% { transform: translate(0, 0); }
         }
 
-        .battle-flash { animation: flashAnim 0.5s ease-in-out; }
+        .battle-flash {
+            animation: flashAnim 0.5s ease-in-out;
+        }
         @keyframes flashAnim {
             0% { background-color: rgba(255,0,0,0); }
             50% { background-color: rgba(255,0,0,0.6); }
@@ -442,11 +434,8 @@
 <div id="app-container">
     <div id="canvas-container">
         <canvas id="three-canvas"></canvas>
-        <div id="cam-toggle-zoom" onclick="toggleZoomMode()">🔍 近/遠表示</div>
         <div class="cam-arrow" id="cam-left" onclick="rotateCam(-1)">‹</div>
         <div class="cam-arrow" id="cam-right" onclick="rotateCam(1)">›</div>
-        <div class="cam-arrow" id="cam-up">▲</div>
-        <div class="cam-arrow" id="cam-down">▼</div>
         <div id="huge-count" class="hidden">40</div>
         <div id="turn-banner" class="hidden">〇〇の番です</div>
         <div id="central-battle-status" class="hidden"></div>
@@ -469,18 +458,19 @@
         </div>
 
         <div class="controls-info">
-            💡 左右矢印: 回転 | 上下矢印: 高さ移動 | タップ: ブロック決定
+            💡 左右矢印: 回転 | ダブルタップ: 近接/全体 | 上下スワイプ: 高さ移動
         </div>
     </div>
 
-    <!-- タイトル画面 -->
+    <!-- ① タイトル画面 -->
     <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタックVer1.2</div>
+        <div class="title-logo">ジェンガアタック</div>
         <div class="blink-text">スタート</div>
     </div>
 
-    <!-- メニュー画面 -->
-    <div id="menu-screen" class="overlay hidden">
+    <!-- ② メニュー画面群 -->
+    <div id="menu-screen" class="overlay hidden" style="cursor: default;">
+        <!-- 初期項目: 1.ホスト / 2.ゲスト / 3.終了 -->
         <div class="menu-box" id="menu-main">
             <h3>メニュー</h3>
             <button class="menu-btn" onclick="selectHost()">１，ホスト</button>
@@ -488,6 +478,7 @@
             <button class="menu-btn" onclick="location.reload()">３，終了</button>
         </div>
 
+        <!-- プレイヤーネーム入力 -->
         <div class="menu-box hidden" id="menu-name">
             <h3>プレイヤーネーム</h3>
             <p style="font-size:11px; color:#aaa;">(ひらがな・数字 6文字まで)</p>
@@ -495,6 +486,7 @@
             <button class="menu-btn" onclick="submitName()">決定</button>
         </div>
 
+        <!-- 何人で遊ぶかを決定（ホスト用 最大5人） -->
         <div class="menu-box hidden" id="menu-player-count">
             <h3>対戦人数選択</h3>
             <p style="font-size:11px; color:#aaa;">何人で遊ぶかを指定してください (最大5人)</p>
@@ -507,6 +499,7 @@
             </div>
         </div>
 
+        <!-- ゲスト用: 4桁ルームID入力 -->
         <div class="menu-box hidden" id="menu-guest-id">
             <h3>4桁ルームID入力</h3>
             <p style="font-size:10px; color:#aaa;">ホストから共有された4桁の数字を入力してください</p>
@@ -514,6 +507,7 @@
             <button class="menu-btn" onclick="connectGuest()">接続</button>
         </div>
 
+        <!-- オンラインロビー -->
         <div class="menu-box hidden" id="menu-lobby">
             <h3>接続待機中...</h3>
             <div style="font-size:18px; font-weight:bold; color:#ffcc00; margin:5px 0;" id="room-id-display">4桁ID: 読み込み中...</div>
@@ -558,12 +552,11 @@ const STATE = {
     timer: 40,
     timerInterval: null,
     selectedBlock: null,
-    selectedBlockId: null,
     camAngle: 0,
     camHeight: 12,
     isZoomed: false,
     gaugeRunning: false,
-    gaugeSpeed: 1.5,
+    gaugeSpeed: 2,
     gaugePos: 0,
     gaugeDir: 1,
     powerScore: 0,
@@ -592,7 +585,6 @@ let blocks = [];
 let handMeshes = [];
 let trajectoryLine = null;
 let pollingTimer = null;
-let processedPhase = "";
 
 function init3D() {
     const container = document.getElementById('canvas-container');
@@ -605,7 +597,6 @@ function init3D() {
 
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -782,76 +773,76 @@ function updateCameraPosition() {
     camera.lookAt(0, STATE.isZoomed ? STATE.camHeight : 6, 0);
 }
 
-function toggleZoomMode() {
-    STATE.isZoomed = !STATE.isZoomed;
-    updateCameraPosition();
-}
-
 function rotateCam(dir) {
     STATE.camAngle += dir * (Math.PI / 4);
     updateCameraPosition();
 }
 
-/* --- タッチ/ポインター制御（遠近トグル分離・ブロック判定の安定化） --- */
-let touchStartX = 0;
+let lastTapTime = 0;
 let touchStartY = 0;
+let touchStartX = 0;
 let touchStartTime = 0;
-let heightMoveInterval = null;
-
-function moveCamHeight(dir) {
-    STATE.camHeight = Math.max(1, Math.min(18, STATE.camHeight + dir * 0.4));
-    updateCameraPosition();
-}
-
-function startHeightMove(dir) {
-    if (heightMoveInterval) clearInterval(heightMoveInterval);
-    moveCamHeight(dir);
-    heightMoveInterval = setInterval(() => {
-        moveCamHeight(dir);
-    }, 50);
-}
-
-function stopHeightMove() {
-    if (heightMoveInterval) {
-        clearInterval(heightMoveInterval);
-        heightMoveInterval = null;
-    }
-}
+let isLongPress = false;
+let longPressTimer = null;
 
 function initTouchControls() {
     const container = document.getElementById('canvas-container');
 
-    const btnUp = document.getElementById('cam-up');
-    const btnDown = document.getElementById('cam-down');
-
-    ['pointerdown'].forEach(evt => {
-        btnUp.addEventListener(evt, (e) => { e.stopPropagation(); startHeightMove(1); });
-        btnDown.addEventListener(evt, (e) => { e.stopPropagation(); startHeightMove(-1); });
-    });
-
-    ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => {
-        btnUp.addEventListener(evt, stopHeightMove);
-        btnDown.addEventListener(evt, stopHeightMove);
-    });
-
-    const handleStart = (clientX, clientY) => {
-        touchStartX = clientX;
-        touchStartY = clientY;
-        touchStartTime = Date.now();
-    };
-
-    const handleEnd = (clientX, clientY) => {
-        const elapsed = Date.now() - touchStartTime;
-        const dist = Math.hypot(clientX - touchStartX, clientY - touchStartY);
-
-        // スワイプではなくタップの判定（判定時間を500ms、距離を25px以内に調整）
-        if (elapsed < 500 && dist < 25) {
-            handleBlockSelection(clientX, clientY);
+    window.addEventListener('touchmove', (e) => {
+        if (e.target.tagName !== 'INPUT') {
+            e.preventDefault();
         }
-    };
+    }, { passive: false });
 
-    container.addEventListener('pointerdown', (e) => handleStart(e.clientX, e.clientY));
-    container.addEventListener('pointerup', (e) => handleEnd(e.clientX, e.clientY));
+    container.addEventListener('pointerdown', (e) => {
+        touchStartX = e.clientX;
+        touchStartY = e.clientY;
+        touchStartTime = Date.now();
+        isLongPress = false;
+
+        if (longPressTimer) clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+            isLongPress = true;
+        }, 400);
+
+        const currentTime = Date.now();
+        const tapLength = currentTime - lastTapTime;
+        if (tapLength < 300 && tapLength > 0) {
+            if (longPressTimer) clearTimeout(longPressTimer);
+            isLongPress = true;
+            STATE.isZoomed = !STATE.isZoomed;
+            updateCameraPosition();
+        }
+        lastTapTime = currentTime;
+    });
+
+    container.addEventListener('pointermove', (e) => {
+        if (Math.abs(e.clientX - touchStartX) > 10 || Math.abs(e.clientY - touchStartY) > 10) {
+            if (longPressTimer) clearTimeout(longPressTimer);
+            isLongPress = true;
+        }
+
+        if (STATE.isZoomed && e.buttons === 1) {
+            const diff = touchStartY - e.clientY;
+            if (Math.abs(diff) > 10) {
+                if (diff > 0) {
+                    STATE.camHeight = Math.min(18, STATE.camHeight + 0.2);
+                } else {
+                    STATE.camHeight = Math.max(1, STATE.camHeight - 0.2);
+                }
+                touchStartY = e.clientY;
+                updateCameraPosition();
+            }
+        }
+    });
+
+    container.addEventListener('pointerup', (e) => {
+        if (longPressTimer) clearTimeout(longPressTimer);
+        
+        if (!isLongPress && (Date.now() - touchStartTime < 400)) {
+            handleBlockSelection(e.clientX, e.clientY);
+        }
+    });
 }
 
 function handleBlockSelection(clientX, clientY) {
@@ -869,20 +860,19 @@ function handleBlockSelection(clientX, clientY) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
     
-    const targetMeshes = blocks.map(b => b.mesh);
-    const intersects = raycaster.intersectObjects(targetMeshes, true);
+    const allMeshes = blocks.map(b => b.mesh);
+    const intersects = raycaster.intersectObjects(allMeshes, true);
 
     if (intersects.length > 0) {
-        let hitObj = intersects[0].object;
-        while (hitObj.parent && hitObj.parent !== scene) {
-            if (targetMeshes.includes(hitObj)) break;
-            hitObj = hitObj.parent;
+        let hitObject = intersects[0].object;
+        while (hitObject && !blocks.some(b => b.mesh === hitObject) && hitObject.parent) {
+            hitObject = hitObject.parent;
         }
-        const blockObj = blocks.find(b => b.mesh === hitObj);
+
+        const blockObj = blocks.find(b => b.mesh === hitObject);
 
         if (blockObj) {
             STATE.selectedBlock = blockObj;
-            STATE.selectedBlockId = blockObj.id;
             showJengaConfirmPopup(blockObj);
         }
     }
@@ -903,7 +893,6 @@ window.onJengaConfirm = function(isOk) {
         selectTargetPlayer();
     } else {
         STATE.selectedBlock = null;
-        STATE.selectedBlockId = null;
     }
 };
 
@@ -927,14 +916,9 @@ function animate() {
 
     if (STATE.gaugeRunning) {
         STATE.gaugePos += STATE.gaugeSpeed * STATE.gaugeDir;
-        if (STATE.gaugePos >= 100) {
-            STATE.gaugePos = 100;
-            STATE.gaugeDir = -1;
-        } else if (STATE.gaugePos <= 0) {
-            STATE.gaugePos = 0;
-            STATE.gaugeDir = 1;
+        if (STATE.gaugePos >= 100 || STATE.gaugePos <= 0) {
+            STATE.gaugeDir *= -1;
         }
-
         const pointer = document.getElementById('gauge-pointer');
         const valDisp = document.getElementById('gauge-val-display');
         const bg = document.querySelector('.gauge-bar-bg');
@@ -1017,8 +1001,7 @@ async function createRoomWithPin() {
             turnIndex: 0,
             targetPlayerIndex: 0,
             powerScore: 0,
-            guardScore: 0,
-            selectedBlockId: null
+            guardScore: 0
         };
 
         const res = await fetch("https://api.jsonbin.io/v3/b", {
@@ -1143,8 +1126,7 @@ async function connectGuest() {
                 turnIndex: foundRoomData.turnIndex || 0,
                 targetPlayerIndex: foundRoomData.targetPlayerIndex || 0,
                 powerScore: foundRoomData.powerScore || 0,
-                guardScore: foundRoomData.guardScore || 0,
-                selectedBlockId: foundRoomData.selectedBlockId || null
+                guardScore: foundRoomData.guardScore || 0
             });
         } else {
             STATE.myIndex = STATE.players.findIndex(p => p.name === STATE.myName);
@@ -1163,27 +1145,16 @@ async function connectGuest() {
     }
 }
 
-async function updateRoomData(updateObj) {
+async function updateRoomData(roomData) {
     if (!STATE.myRoomBinId) return;
     try {
-        const getRes = await fetch(`https://api.jsonbin.io/v3/b/${STATE.myRoomBinId}/latest?_=${Date.now()}`, {
-            headers: { "X-Master-Key": JSONBIN_API_KEY }
-        });
-        let currentRecord = {};
-        if (getRes.ok) {
-            const currentData = await getRes.json();
-            currentRecord = currentData.record || {};
-        }
-
-        const mergedData = { ...currentRecord, ...updateObj };
-
         await fetch(`https://api.jsonbin.io/v3/b/${STATE.myRoomBinId}`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
                 "X-Master-Key": JSONBIN_API_KEY
             },
-            body: JSON.stringify(mergedData)
+            body: JSON.stringify(roomData)
         });
     } catch(e) {
         console.error("Update error", e);
@@ -1210,53 +1181,32 @@ function startPolling() {
             if (room && room.players) {
                 STATE.players = room.players;
                 if (room.maxPlayers) STATE.maxPlayers = room.maxPlayers;
-                if (room.turnIndex !== undefined) STATE.turnIndex = room.turnIndex;
+                if (room.phase) STATE.phase = room.phase;
                 if (room.targetPlayerIndex !== undefined) STATE.targetPlayerIndex = room.targetPlayerIndex;
                 if (room.powerScore !== undefined) STATE.powerScore = room.powerScore;
                 if (room.guardScore !== undefined) STATE.guardScore = room.guardScore;
-                if (room.selectedBlockId) {
-                    STATE.selectedBlockId = room.selectedBlockId;
-                    STATE.selectedBlock = blocks.find(b => b.id === room.selectedBlockId) || STATE.selectedBlock;
-                }
-
-                const serverPhase = room.phase;
 
                 if (STATE.mode === 'LOBBY') {
                     updateLobbyUI();
-                    if (serverPhase === 'SHOW_ORDER') {
+                    if (room.phase === 'SHOW_ORDER') {
                         document.getElementById('menu-screen').classList.add('hidden');
                         showOrderScreen();
                     }
                 } else if (STATE.mode === 'ORDER_CONFIRM') {
                     showOrderScreen();
                 } else if (STATE.mode === 'GAME') {
-                    if (serverPhase !== processedPhase) {
-                        processedPhase = serverPhase;
-                        STATE.phase = serverPhase;
-
-                        if (serverPhase === 'ANGLE_H' || serverPhase === 'ANGLE_V' || serverPhase === 'POWER') {
-                            if (STATE.myIndex === STATE.turnIndex) {
-                                openPowerGauge(serverPhase);
-                            } else {
-                                const atkP = STATE.players[STATE.turnIndex];
-                                showPleaseWaitPopup(`⚔️ ${atkP ? atkP.name : '攻撃プレイヤー'} の操作を待っています...`);
-                            }
-                        } else if (serverPhase === 'GUARD') {
-                            if (STATE.myIndex === STATE.targetPlayerIndex) {
-                                openPowerGauge('GUARD');
-                            } else {
-                                const targetP = STATE.players[STATE.targetPlayerIndex];
-                                showPleaseWaitPopup(`🛡️ ${targetP ? targetP.name : '相手'} の防御操作を待っています...`);
-                            }
-                        } else if (serverPhase === 'RESULT') {
-                            resolveBattleResult();
-                        } else if (serverPhase === 'SELECT') {
-                            startTurnUI();
+                    if (room.phase === 'GUARD' && document.getElementById('power-gauge-overlay').classList.contains('hidden') && !STATE.gaugeRunning) {
+                        if (STATE.myIndex === STATE.targetPlayerIndex) {
+                            closePopup();
+                            openPowerGauge('GUARD');
+                        } else {
+                            showPleaseWaitPopup("相手の防御操作を待っています...");
                         }
                     }
                 }
 
-                if (serverPhase === 'GAME' && STATE.mode !== 'GAME') {
+                if (room.phase === 'GAME' && STATE.mode !== 'GAME') {
+                    if (pollingTimer) clearInterval(pollingTimer);
                     closePopup();
                     startGame();
                 }
@@ -1264,7 +1214,7 @@ function startPolling() {
         } catch(e) {
             console.error("Polling error", e);
         }
-    }, 1500);
+    }, 2000);
 }
 
 function updateLobbyUI() {
@@ -1349,6 +1299,7 @@ async function executeGameStart() {
         guardScore: 0
     });
 
+    if (pollingTimer) clearInterval(pollingTimer);
     closePopup();
     startGame();
 }
@@ -1359,24 +1310,21 @@ function startGame() {
     STATE.mode = 'GAME';
     buildJengaTower();
     createPlayerHands();
+    updateGUI();
     startTurn();
 }
 
 function startTurn() {
     STATE.phase = 'SELECT';
-    processedPhase = 'SELECT';
     STATE.timer = 40;
-    startTurnUI();
-}
-
-function startTurnUI() {
     document.getElementById('huge-count').classList.add('hidden');
+    
     updateGUI();
     updateCentralStatus();
 
     const curP = STATE.players[STATE.turnIndex];
     const banner = document.getElementById('turn-banner');
-    banner.innerText = `${curP ? curP.name : ''} の番です`;
+    banner.innerText = `${curP.name} の番です`;
     banner.classList.remove('hidden');
     setTimeout(() => {
         banner.classList.add('hidden');
@@ -1395,33 +1343,16 @@ function startTurnUI() {
 
         if (STATE.timer <= 0) {
             clearInterval(STATE.timerInterval);
-            if (STATE.turnIndex === STATE.myIndex) {
-                nextTurn();
-            }
+            nextTurn();
         }
     }, 1000);
 }
 
-async function nextTurn() {
+function nextTurn() {
     clearInterval(STATE.timerInterval);
     document.getElementById('spit-overlay').classList.add('hidden');
     if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
-    
     STATE.turnIndex = (STATE.turnIndex + 1) % STATE.players.length;
-    STATE.selectedBlock = null;
-    STATE.selectedBlockId = null;
-
-    await updateRoomData({
-        pin: STATE.roomPin,
-        players: STATE.players,
-        phase: 'SELECT',
-        turnIndex: STATE.turnIndex,
-        targetPlayerIndex: 0,
-        powerScore: 0,
-        guardScore: 0,
-        selectedBlockId: null
-    });
-
     startTurn();
 }
 
@@ -1456,22 +1387,14 @@ function updateGUI() {
 function updateCentralStatus() {
     const cs = document.getElementById('central-battle-status');
     cs.classList.remove('hidden');
-    const curP = STATE.players[STATE.turnIndex];
+    const curP = STATE.players[STATE.turnIndex] || { name: 'Player', hp: 100 };
+    const targetP = STATE.players[STATE.targetPlayerIndex] || STATE.players[(STATE.turnIndex + 1) % STATE.players.length] || curP;
     
-    let targetIdx = STATE.targetPlayerIndex;
-    if (STATE.players.length > 1 && (targetIdx === STATE.turnIndex || targetIdx >= STATE.players.length)) {
-        targetIdx = (STATE.turnIndex + 1) % STATE.players.length;
-    }
-    
-    const targetP = STATE.players[targetIdx] || curP;
-    
-    if (curP && targetP) {
-        cs.innerHTML = `
-            <span style="color:#ffcc00;">攻: ${curP.name} (HP:${curP.hp})</span>
-            <span>VS</span>
-            <span style="color:#00ffff;">防: ${targetP.name} (HP:${targetP.hp})</span>
-        `;
-    }
+    cs.innerHTML = `
+        <span style="color:#ffcc00;">攻: ${curP.name} (HP:${curP.hp})</span>
+        <span>VS</span>
+        <span style="color:#00ffff;">防: ${targetP.name} (HP:${targetP.hp})</span>
+    `;
 }
 
 let tempSelectedTargetIndex = -1;
@@ -1479,7 +1402,6 @@ let tempSelectedTargetIndex = -1;
 function selectTargetPlayer() {
     if (STATE.players.length === 1) {
         STATE.targetPlayerIndex = 0;
-        updateCentralStatus();
         startAngleSelectionH();
         return;
     }
@@ -1492,7 +1414,7 @@ function selectTargetPlayer() {
 function renderTargetSelectPopup() {
     let html = `<div class="target-select-list" style="display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:200px; overflow-y:auto;">`;
     STATE.players.forEach((p, i) => {
-        if (i !== STATE.turnIndex) {
+        if (i !== STATE.myIndex) {
             const isSelected = (tempSelectedTargetIndex === i);
             html += `<div style="background:${isSelected ? '#554422' : '#333'}; border:2px solid ${isSelected ? '#ffcc00' : '#555'}; padding:10px; border-radius:6px; cursor:pointer; text-align:left;" onclick="window.tempSelectTarget(${i})">
                 <b>${p.name}</b> (HP: ${p.hp}) ${isSelected ? ' ◀ 選択中' : ''}
@@ -1511,21 +1433,20 @@ window.tempSelectTarget = function(idx) {
 };
 
 window.confirmTargetFinal = async function() {
-    if (tempSelectedTargetIndex === -1) {
+    if (tempSelectedTargetIndex === -1 && STATE.players.length > 1) {
         alert("攻撃対象を選択してください！");
         return;
     }
-    STATE.targetPlayerIndex = tempSelectedTargetIndex;
-    updateCentralStatus();
+    STATE.targetPlayerIndex = tempSelectedTargetIndex >= 0 ? tempSelectedTargetIndex : 0;
     closePopup();
 
     await updateRoomData({
         pin: STATE.roomPin,
+        maxPlayers: STATE.maxPlayers,
         players: STATE.players,
         phase: 'ANGLE_H',
         turnIndex: STATE.turnIndex,
-        targetPlayerIndex: STATE.targetPlayerIndex,
-        selectedBlockId: STATE.selectedBlockId
+        targetPlayerIndex: STATE.targetPlayerIndex
     });
 
     startAngleSelectionH();
@@ -1556,46 +1477,44 @@ function openPowerGauge(type) {
         bg.classList.remove('vertical-gauge');
     }
 
+    if (type === 'GUARD') {
+        if (STATE.myIndex !== STATE.targetPlayerIndex && STATE.players.length > 1) {
+            showPleaseWaitPopup("相手の防御操作を待っています...");
+            return;
+        }
+    }
+
     closePopup();
     overlay.classList.remove('hidden');
     
-    const speeds = [1.2, 2.5, 4.5];
-    STATE.gaugeSpeed = speeds[Math.floor(Math.random() * speeds.length)];
-    STATE.gaugePos = 0;
-    STATE.gaugeDir = 1;
     STATE.gaugeRunning = true;
+    STATE.gaugePos = 0;
+    STATE.gaugeSpeed = Math.random() * 3 + 2;
 
-    const curP = STATE.players[STATE.turnIndex];
-    let targetIdx = STATE.targetPlayerIndex;
-    if (STATE.players.length > 1 && targetIdx === STATE.turnIndex) {
-        targetIdx = (STATE.turnIndex + 1) % STATE.players.length;
-    }
-    const targetP = STATE.players[targetIdx] || curP;
+    const curP = STATE.players[STATE.turnIndex] || { name: 'Player' };
+    const targetP = STATE.players[STATE.targetPlayerIndex] || curP;
 
     if (type === 'ANGLE_H') {
-        document.getElementById('gauge-owner-title').innerText = `【${curP ? curP.name : ''}のターン】横軸角度(X軸)決定`;
+        document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】横軸角度決定`;
     } else if (type === 'ANGLE_V') {
-        document.getElementById('gauge-owner-title').innerText = `【${curP ? curP.name : ''}のターン】縦軸角度(Y軸)決定`;
+        document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】縦軸角度決定`;
     } else if (type === 'POWER') {
-        document.getElementById('gauge-owner-title').innerText = `【${curP ? curP.name : ''}のターン】攻撃パワー決定`;
+        document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】攻撃パワー決定`;
     } else if (type === 'GUARD') {
-        document.getElementById('gauge-owner-title').innerText = `🛡️ 【${targetP ? targetP.name : ''}の防御ターン】防御ゲージをストップ！`;
+        document.getElementById('gauge-owner-title').innerText = `🛡️ 【${targetP.name}の防御ターン】防御ゲージをストップ！`;
     }
 }
 
 async function stopGauge() {
     if (!STATE.gaugeRunning) return;
     
-    if (STATE.phase === 'GUARD') {
-        if (STATE.myIndex !== STATE.targetPlayerIndex) {
-            alert("あなたではなく、防御プレイヤーの操作番です！");
-            return;
-        }
-    } else {
-        if (STATE.turnIndex !== STATE.myIndex) {
-            alert("あなたのターンではありません！");
-            return;
-        }
+    if (STATE.phase === 'GUARD' && STATE.myIndex !== STATE.targetPlayerIndex && STATE.players.length > 1) {
+        alert("あなたではなく、防御プレイヤーの操作番です！");
+        return;
+    }
+    if (STATE.phase !== 'GUARD' && STATE.turnIndex !== STATE.myIndex && STATE.players.length > 1) {
+        alert("あなたのターンではありません！");
+        return;
     }
 
     STATE.gaugeRunning = false;
@@ -1604,50 +1523,45 @@ async function stopGauge() {
 
     if (STATE.phase === 'ANGLE_H') {
         STATE.angleHVal = val;
-        STATE.phase = 'ANGLE_V';
-        processedPhase = 'ANGLE_V';
-        await updateRoomData({
-            pin: STATE.roomPin,
-            phase: 'ANGLE_V'
-        });
         setTimeout(startAngleSelectionV, 400);
-
     } else if (STATE.phase === 'ANGLE_V') {
         STATE.angleVVal = val;
         showTrajectoryPreview();
-
     } else if (STATE.phase === 'POWER') {
         STATE.powerScore = val;
         STATE.phase = 'GUARD';
-        processedPhase = 'GUARD';
-
+        
         await updateRoomData({
             pin: STATE.roomPin,
+            maxPlayers: STATE.maxPlayers,
             players: STATE.players,
             phase: 'GUARD',
             turnIndex: STATE.turnIndex,
             targetPlayerIndex: STATE.targetPlayerIndex,
-            powerScore: STATE.powerScore,
-            selectedBlockId: STATE.selectedBlockId
+            powerScore: STATE.powerScore
         });
 
-        const targetP = STATE.players[STATE.targetPlayerIndex];
-        showPleaseWaitPopup(`🛡️ ${targetP ? targetP.name : '相手'} の防御操作を待っています...`);
-
+        showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "", null);
+        setTimeout(() => {
+            if (STATE.myIndex !== STATE.targetPlayerIndex && STATE.players.length > 1) {
+                showPleaseWaitPopup("相手の防御操作を待っています...");
+            } else if (STATE.players.length === 1) {
+                openPowerGauge('GUARD');
+            }
+        }, 1200);
     } else if (STATE.phase === 'GUARD') {
         STATE.guardScore = val;
         STATE.phase = 'RESULT';
-        processedPhase = 'RESULT';
-
+        
         await updateRoomData({
             pin: STATE.roomPin,
+            maxPlayers: STATE.maxPlayers,
             players: STATE.players,
             phase: 'RESULT',
             turnIndex: STATE.turnIndex,
             targetPlayerIndex: STATE.targetPlayerIndex,
             powerScore: STATE.powerScore,
-            guardScore: STATE.guardScore,
-            selectedBlockId: STATE.selectedBlockId
+            guardScore: STATE.guardScore
         });
 
         resolveBattleResult();
@@ -1718,14 +1632,9 @@ function showTrajectoryPreview() {
             document.getElementById('central-battle-status').classList.remove('hidden');
             document.querySelectorAll('.cam-arrow').forEach(el => el.classList.remove('hidden'));
             
-            showPopup("軌道確認完了", "全体図の確認が終わりました。", "攻撃パワー決定へ", async () => {
+            showPopup("軌道確認完了", "全体図の確認が終わりました。", "攻撃パワー決定へ", () => {
                 if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
                 STATE.phase = 'POWER';
-                processedPhase = 'POWER';
-                await updateRoomData({
-                    pin: STATE.roomPin,
-                    phase: 'POWER'
-                });
                 openPowerGauge('POWER');
             });
         }
@@ -1736,7 +1645,7 @@ function resolveBattleResult() {
     closePopup();
     const diff = STATE.powerScore - STATE.guardScore;
     const turnP = STATE.players[STATE.turnIndex];
-    const targetP = STATE.players[STATE.targetPlayerIndex];
+    const targetP = STATE.players[STATE.targetPlayerIndex] || turnP;
 
     let msg = `<div class="power-impact-text">${STATE.powerScore} POWER</div>`;
     msg += `<div class="guard-impact-text">VS ${STATE.guardScore} GUARD</div><br>`;
@@ -1745,10 +1654,8 @@ function resolveBattleResult() {
         msg += `<b style="color:#00ff00;">ガード成功！ダメージなし</b>`;
     } else {
         const damage = Math.ceil(diff / 10);
-        if (targetP) {
-            targetP.hp = Math.max(0, targetP.hp - damage);
-            msg += `<b style="color:#ff3333; font-size:20px;">${targetP.name} に ${damage} の大ダメージ！</b>`;
-        }
+        targetP.hp = Math.max(0, targetP.hp - damage);
+        msg += `<b style="color:#ff3333; font-size:20px;">${targetP.name} に ${damage} の大ダメージ！</b>`;
         
         document.getElementById('app-container').classList.add('shake');
         document.getElementById('app-container').classList.add('battle-flash');
@@ -1760,39 +1667,23 @@ function resolveBattleResult() {
 
     activatePhysics();
 
-    if (!STATE.selectedBlock && STATE.selectedBlockId) {
-        STATE.selectedBlock = blocks.find(b => b.id === STATE.selectedBlockId);
-    }
-
     if (STATE.selectedBlock) {
-        const pushForce = Math.max(8.0, (STATE.powerScore / 100) * 25.0);
+        const pushForce = (STATE.powerScore / 50) * 10;
         const dirZ = STATE.selectedBlock.isRotated ? 0 : -pushForce;
         const dirX = STATE.selectedBlock.isRotated ? -pushForce : 0;
 
         STATE.selectedBlock.body.applyImpulse(
-            new CANNON.Vec3(dirX, 3.0, dirZ),
+            new CANNON.Vec3(dirX, 2.0, dirZ),
             STATE.selectedBlock.body.position
         );
-
-        blocks.forEach(b => {
-            if (b !== STATE.selectedBlock && Math.abs(b.body.position.y - STATE.selectedBlock.body.position.y) < 1.2) {
-                b.body.applyImpulse(
-                    new CANNON.Vec3((Math.random() - 0.5) * 0.8, 0.2, (Math.random() - 0.5) * 0.8),
-                    b.body.position
-                );
-            }
-        });
-
-        if (turnP) turnP.score++;
+        turnP.score++;
     }
 
-    showPopup("バトル結果発表", msg, "次へ", () => {
-        if (targetP && targetP.hp <= 0) {
+    showPopup("バトル結果発表", msg, "演出確認・次へ", () => {
+        if (targetP.hp <= 0 && STATE.players.length > 1) {
             alert(`${targetP.name} 脱落！`);
         }
-        if (STATE.turnIndex === STATE.myIndex) {
-            nextTurn();
-        }
+        nextTurn();
     });
 }
 
@@ -1818,7 +1709,7 @@ function useItem(type) {
     } else if (type === 'ganriki') {
         showPopup("👁️ 眼力発動 👁️", "透き通る眼力で次のブロックの弱点を見抜いた！", "OK");
     } else if (type === 'rob') {
-        showPopup("💰 強奪発動 💰", "相手のアイテムを華麗にスリ奪った！", "OK");
+        showPopup("💰 強奪発導 💰", "相手のアイテムを華麗にスリ奪った！", "OK");
     } else {
         showPopup("✨ アイテム発動 ✨", `【${type.toUpperCase()}】を発動しました！`, "OK");
     }
@@ -1840,7 +1731,7 @@ function triggerGameOver() {
     const rankings = [...STATE.players].sort((a, b) => (b.score + b.hp) - (a.score + a.hp));
     const winner = rankings[0];
 
-    let html = `<h2 style="color:#ffcc00;">👑 ${winner ? winner.name : '勝者'} WIN! 👑</h2><br>`;
+    let html = `<h2 style="color:#ffcc00;">👑 ${winner.name} WIN! 👑</h2><br>`;
     html += rankings.map((p, i) => `${i + 1}位: 👑 ${p.name} (獲得:${p.score} / HP:${p.hp})`).join('<br>');
 
     showPopup("倒壊！ゲーム終了", html, "リトライ / 終了", () => {
