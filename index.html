@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>YOSHIO JENGGA - Ultimate Edition</title>
+    <title>YOSHIO JENGGA - Balance Adjusted Edition</title>
     <!-- Three.js & Cannon.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
@@ -20,7 +20,6 @@
             height: 100%;
             overflow: hidden;
             font-family: 'Helvetica Neue', Arial, sans-serif;
-            /* 美しい青空グラデーション */
             background: linear-gradient(to bottom, #1e90ff, #87ceeb);
         }
         
@@ -163,11 +162,6 @@
         }
         #punch-btn.active {
             display: block;
-            animation: pulse-punch 0.8s infinite alternate;
-        }
-        @keyframes pulse-punch {
-            0% { transform: scale(1); box-shadow: 0 0 5px #ff4081; }
-            100% { transform: scale(1.05); box-shadow: 0 0 15px #ff4081; }
         }
         #finish-extract-btn {
             background: #4caf50;
@@ -206,7 +200,6 @@
             font-size: 0.9rem;
             cursor: pointer;
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            transition: 0.1s;
         }
         .tsun-btn:active {
             transform: scale(0.92);
@@ -282,6 +275,14 @@
             overflow: hidden;
             margin: 20px 0;
         }
+        .gauge-labels {
+            width: 80%;
+            max-width: 350px;
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
         .gauge-cursor {
             width: 30px;
             height: 34px;
@@ -300,6 +301,7 @@
             border: none;
             border-radius: 30px;
             cursor: pointer;
+            margin-top: 20px;
         }
 
         /* メッセージバナー */
@@ -350,7 +352,7 @@
             <div class="gui-row">パス残: <span id="pass-count">2</span> 回</div>
             <button class="gui-btn" id="pass-btn">パスする</button>
             <button class="gui-btn" id="zoom-btn">拡大表示</button>
-            <button class="gui-btn" id="punch-btn">何度でも打ち抜く！</button>
+            <button class="gui-btn" id="punch-btn">打ち抜く</button>
             <button class="gui-btn" id="finish-extract-btn">抜き終了</button>
         </div>
 
@@ -380,9 +382,13 @@
 
     <!-- 威力ゲージオーバーレイ -->
     <div id="gauge-overlay">
-        <h2 style="margin:0; text-shadow:0 2px 5px rgba(0,0,0,0.5);">威力ゲージ</h2>
+        <h2 style="margin:0; text-shadow:0 2px 5px rgba(0,0,0,0.5);">威力ゲージ (MAXで強制獲得!)</h2>
         <div class="gauge-bar-container" id="gauge-container">
             <div class="gauge-cursor" id="gauge-cursor"></div>
+        </div>
+        <div class="gauge-labels">
+            <span>0</span>
+            <span>100 (MAX)</span>
         </div>
         <button class="gauge-stop-btn" id="gauge-stop-btn">ストップ！</button>
     </div>
@@ -463,7 +469,7 @@
 
             world = new CANNON.World();
             world.gravity.set(0, -9.82, 0);
-            world.solver.iterations = 30; // 物理演算の精度を高めて安定化
+            world.solver.iterations = 30;
 
             scene.add(new THREE.AmbientLight(0xffffff, 0.7));
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -515,7 +521,7 @@
                     mesh.position.set(x, y, z);
                     towerGroup.add(mesh);
 
-                    // 最初は何もしない状態で確実に自立するよう mass = 0 (完全固定)
+                    // 通常時は完全固定 (mass = 0)
                     const body = new CANNON.Body({ mass: 0 });
                     body.addShape(blockShape);
                     body.position.set(x, y, z);
@@ -655,7 +661,6 @@
                 startActionPhase();
             });
 
-            // 何度でも可能な「打ち抜く！」ボタン
             document.getElementById('punch-btn').addEventListener('click', () => {
                 if (gameState === 'action') openGauge();
             });
@@ -671,23 +676,24 @@
             });
         }
 
-        // --- ① ツンツンアクション（パワー10〜50指定） ---
+        // --- ツンツンアクション（重みを軽くしてしっかり反応するように調整） ---
         function doTsunTsun(power) {
             if (gameState !== 'action' || isTsunLocked || !selectedBlock) return;
 
             const targetObj = blocks.find(b => b.mesh === selectedBlock);
             if (!targetObj) return;
 
-            isTsunLocked = true; // 連続タップ防止ロック
+            isTsunLocked = true;
             extractedBlockData = targetObj;
 
-            const localVector = new CANNON.Vec3(0, 0, power * 0.05);
+            // 力を強めに設定してしっかり動くようにする
+            const localVector = new CANNON.Vec3(0, 0, power * 0.4);
             const worldVector = targetObj.body.quaternion.vmult(localVector);
             
             targetObj.body.applyImpulse(worldVector, targetObj.body.position);
-            showBanner(`ツン！ (威力: ${power}) 押し出し中...`);
+            showBanner(`ツン！ (威力: ${power})`);
 
-            let subTimer = 0.6;
+            let subTimer = 0.5;
             let checkInterval = setInterval(() => {
                 subTimer -= 0.2;
                 if (checkTowerCollapse()) {
@@ -699,7 +705,7 @@
                     clearInterval(checkInterval);
                     if (gameState === 'action') {
                         isTsunLocked = false;
-                        showBanner('ツンツン完了。次のアクションへどうぞ！');
+                        showBanner('アクションを続けてください');
                     }
                 }
             }, 200);
@@ -711,14 +717,14 @@
 
             extractedBlockData = targetObj;
             const rad = cameraAngle * Math.PI / 180;
-            const moveX = deltaX * Math.cos(rad) * 0.03;
-            const moveZ = -deltaX * Math.sin(rad) * 0.03;
+            const moveX = deltaX * Math.cos(rad) * 0.05;
+            const moveZ = -deltaX * Math.sin(rad) * 0.05;
 
             targetObj.body.position.x += moveX;
             targetObj.body.position.z += moveZ;
 
             checkTowerCollapse();
-            showBanner('ドラッグで引き抜き中！（リアルタイム物理演算）');
+            showBanner('ドラッグで引き抜き中');
         }
 
         function selectBlockForConfirmation(mesh) {
@@ -737,12 +743,12 @@
             lookAtY = selectedBlock.position.y;
             updateCameraPosition();
 
-            // 選択された棒の重みをしっかり持たせる（mass = 1.2）
+            // 選択された棒の重みを軽め（mass = 0.6）にして動かしやすくする
             blocks.forEach(b => {
                 if (b.mesh === selectedBlock) {
-                    b.body.mass = 1.2;
+                    b.body.mass = 0.6;
                 } else {
-                    b.body.mass = 0; // 他は完全固定してタワーの安定性を維持
+                    b.body.mass = 0; // 他は完全固定
                 }
                 b.body.updateMassProperties();
                 b.isDynamic = true;
@@ -752,25 +758,36 @@
             document.getElementById('finish-extract-btn').classList.add('active');
             document.getElementById('tsuntsun-panel').classList.add('active');
             
-            showBanner('【アクション】ツンツン・何度でも打ち抜き・ドラッグ！');
+            showBanner('【アクション】ツンツン・打ち抜く・ドラッグ！');
         }
 
+        // --- パワーゲージ（左0 〜 右100、スピードランダム変動） ---
         let isAnimatingGauge = false;
         let gaugePos = 0;
-        let gaugeDir = 1;
+        let gaugeSpeed = 2;
 
         function openGauge() {
             isAnimatingGauge = true;
             gaugePos = 0;
-            gaugeDir = 1;
+            gaugeSpeed = 1.5 + Math.random() * 2.5; // 初期スピードをランダムに設定
             gaugeOverlay.style.display = 'flex';
             requestAnimationFrame(updateGaugeAnimation);
         }
 
         function updateGaugeAnimation() {
             if (!isAnimatingGauge) return;
-            gaugePos += gaugeDir * 4;
-            if (gaugePos >= 90 || gaugePos <= 0) gaugeDir *= -1;
+
+            gaugePos += gaugeSpeed;
+
+            // 端に達したらスピードをランダムに変えて折り返す
+            if (gaugePos >= 100) {
+                gaugePos = 100;
+                gaugeSpeed = -(1.5 + Math.random() * 3.5);
+            } else if (gaugePos <= 0) {
+                gaugePos = 0;
+                gaugeSpeed = 1.5 + Math.random() * 3.5;
+            }
+
             document.getElementById('gauge-cursor').style.left = gaugePos + '%';
             requestAnimationFrame(updateGaugeAnimation);
         }
@@ -779,11 +796,23 @@
             isAnimatingGauge = false;
             gaugeOverlay.style.display = 'none';
 
-            pendingPunchPower = Math.floor(Math.abs(gaugePos - 45) * 2 + 15);
+            // 100（MAX）だった場合はどのような状況下でも強制獲得！
+            if (gaugePos >= 98) {
+                showBanner('🔥 MAX!! どんな状況下でも強制獲得！ 🔥');
+                shakeDuration = 0.8;
+                shakeIntensity = 0.6;
+                createFireworks();
+                setTimeout(() => {
+                    successTurn();
+                }, 1500);
+                return;
+            }
+
+            pendingPunchPower = Math.floor(gaugePos * 0.4 + 5);
             shakeDuration = 0.5;
             shakeIntensity = 0.4;
 
-            showBanner(`💥 威力: ${pendingPunchPower} 爆発発動！！ 💥`);
+            showBanner(`💥 威力: ${Math.floor(gaugePos)} (パワー発動) 💥`);
             startLightConvergenceEffect();
         }
 
@@ -795,7 +824,7 @@
             if (!target) return;
 
             const centerPos = target.body.position;
-            const count = 50;
+            const count = 40;
 
             for (let i = 0; i < count; i++) {
                 const geo = new THREE.SphereGeometry(0.08, 6, 6);
@@ -820,7 +849,7 @@
                     start: startPos,
                     target: centerPos,
                     progress: 0,
-                    speed: 0.03 + Math.random() * 0.04
+                    speed: 0.04 + Math.random() * 0.05
                 });
             }
         }
@@ -828,14 +857,13 @@
         function executePunch() {
             const target = blocks.find(b => b.mesh === selectedBlock);
             if (target) {
-                target.body.velocity.set(0, 2, pendingPunchPower * 0.6);
-                target.body.angularVelocity.set(5, 5, 0);
+                target.body.velocity.set(0, 2, pendingPunchPower * 0.5);
+                target.body.angularVelocity.set(4, 4, 0);
                 extractedBlockData = target;
             }
             startSuccessCheckTimer();
         }
 
-        // 倒れた時点で即ゲームオーバーにする常時判定
         function checkTowerCollapse() {
             let isCollapsed = false;
             blocks.forEach(b => {
@@ -993,7 +1021,7 @@
             if (world) {
                 if (gameState === 'action' || gameState === 'check') {
                     world.step(1 / 60, delta, 3);
-                    checkTowerCollapse(); // 毎フレーム倒壊を監視して即ゲームオーバー
+                    checkTowerCollapse();
                 }
                 for (let i = 0; i < blocks.length; i++) {
                     blocks[i].mesh.position.copy(blocks[i].body.position);
