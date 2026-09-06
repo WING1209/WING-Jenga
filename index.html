@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>YOSHIO JENGGA</title>
+    <title>YOSHIO JENGGA
+        Ver1.0</title>
     <!-- Three.js & Cannon.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
@@ -212,7 +213,7 @@
         #pop-ok { background: #4caf50; color: white; }
         #pop-no { background: #f44336; color: white; }
 
-        /* 威力ゲージオーバーレイ */
+        /* 威力ゲージ */
         #gauge-overlay {
             position: absolute;
             top: 0;
@@ -264,7 +265,7 @@
             top: 15%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 1.6rem;
+            font-size: 1.5rem;
             font-weight: bold;
             color: #ffeb3b;
             text-shadow: 0 2px 10px rgba(0,0,0,0.8);
@@ -333,8 +334,7 @@
     </div>
 
     <script>
-        // --- 状態管理 ---
-        let gameState = 'title'; // 'view', 'action', 'check', 'place', 'gameover'
+        let gameState = 'view'; // 'view', 'action', 'check', 'place', 'gameover'
         let isZoomed = false;
         let selectedBlock = null;
         let extractedBlockData = null;
@@ -343,7 +343,11 @@
         let timerSeconds = 0;
         let timerInterval = null;
 
-        // --- DOM要素 ---
+        // ドラッグ抜き取り用
+        let isDraggingBlock = false;
+        let previousMouseX = 0;
+        let previousMouseY = 0;
+
         const titleScreen = document.getElementById('title-screen');
         const menuScreen = document.getElementById('menu-screen');
         const gameScreen = document.getElementById('game-screen');
@@ -367,19 +371,17 @@
             alert('ブラウザのタブを閉じてください。');
         });
 
-        // --- Three.js & Cannon.js ---
         let scene, camera, renderer, world;
         let blocks = [];
         let towerGroup;
         let raycaster = new THREE.Raycaster();
         let mouse = new THREE.Vector2();
 
-        // カメラパラメータ（平行表示・支点連動）
         let cameraAngle = 0;
-        let lookAtY = 6;      // 注視点のY（支点）
-        let cameraHeightOffset = 8; // 注視点からの高さオフセット
-        let cameraRadius = 16;
-        let isDragging = false;
+        let lookAtY = 6;
+        let cameraHeightOffset = 10; // 通常時の高さ
+        let cameraRadius = 22;       // 通常時の距離（少し広め）
+        let isViewDragging = false;
         let previousTouchY = 0;
 
         function initGame3D() {
@@ -397,11 +399,9 @@
             renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // 物理ワールド（初期は重力を弱くせず通常設定だが、全静止状態）
             world = new CANNON.World();
             world.gravity.set(0, -9.82, 0);
 
-            // ライティング
             scene.add(new THREE.AmbientLight(0xffffff, 0.7));
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
             dirLight.position.set(15, 30, 15);
@@ -421,7 +421,6 @@
             baseBody.position.set(0, -0.5, 0);
             world.addBody(baseBody);
 
-            // 20段 × 3本 = 60本
             towerGroup = new THREE.Group();
             scene.add(towerGroup);
 
@@ -450,16 +449,18 @@
                     mesh.castShadow = true;
                     mesh.receiveShadow = true;
                     mesh.userData = { id: blocks.length, originalColor: 0xDEB887, floor: i };
+                    
+                    // 初期位置を設定
+                    mesh.position.set(x, y, z);
                     towerGroup.add(mesh);
 
-                    // 【重要】視点操作時は物理演算を完全に効かせないため、最初は mass = 0 (Static)
                     const body = new CANNON.Body({ mass: 0 });
                     body.addShape(blockShape);
                     body.position.set(x, y, z);
                     body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), rotY);
                     world.addBody(body);
 
-                    blocks.push({ mesh, body, initialPos: new CANNON.Vec3(x, y, z), isDynamic: false });
+                    blocks.push({ mesh, body, isDynamic: false });
                 }
             }
 
@@ -468,14 +469,13 @@
             animate();
         }
 
-        // カメラ位置更新（支点連動・拡大は5段分サイズ）
+        // カメラ位置更新（拡大時は5段分が余裕を持って見える適度な遠さ）
         function updateCameraPosition() {
-            let targetRadius = isZoomed ? 6 : 18;
+            let targetRadius = isZoomed ? 12 : 22;
             if (isZoomed) {
-                // 5段分（高さ約3.0）がおさまる拡大サイズ
-                cameraHeightOffset = 3.0;
+                cameraHeightOffset = 5.0; // 5段分がゆったりおさまる高さ
             } else {
-                cameraHeightOffset = 8.0;
+                cameraHeightOffset = 10.0;
             }
 
             const rad = cameraAngle * Math.PI / 180;
@@ -485,7 +485,6 @@
             camera.lookAt(0, lookAtY, 0);
         }
 
-        // --- イベント管理 ---
         function initEvents() {
             document.getElementById('arrow-left').addEventListener('click', () => {
                 cameraAngle -= 45;
@@ -496,27 +495,76 @@
                 updateCameraPosition();
             });
 
-            // 上下スライド（支点ごと上下に動く）
+            // 視点操作（通常時の上下スライド）
             window.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 1 && gameState === 'view') {
-                    isDragging = true;
+                    isViewDragging = true;
                     previousTouchY = e.touches[0].clientY;
+                } else if (e.touches.length === 1 && gameState === 'action') {
+                    isDraggingBlock = true;
+                    previousMouseX = e.touches[0].clientX;
+                    previousMouseY = e.touches[0].clientY;
                 }
             });
 
             window.addEventListener('touchmove', (e) => {
-                if (!isDragging || gameState !== 'view') return;
-                const currentY = e.touches[0].clientY;
-                const deltaY = currentY - previousTouchY;
-                previousTouchY = currentY;
-
-                // 支点(lookAtY)を上下に動かし、カメラも一緒に平行移動
-                lookAtY -= deltaY * 0.05;
-                lookAtY = Math.max(3, Math.min(15, lookAtY));
-                updateCameraPosition();
+                if (isViewDragging && gameState === 'view') {
+                    const currentY = e.touches[0].clientY;
+                    const deltaY = currentY - previousTouchY;
+                    previousTouchY = currentY;
+                    lookAtY -= deltaY * 0.05;
+                    lookAtY = Math.max(3, Math.min(15, lookAtY));
+                    updateCameraPosition();
+                } else if (isDraggingBlock && gameState === 'action' && selectedBlock) {
+                    const currentX = e.touches[0].clientX;
+                    const deltaX = currentX - previousMouseX;
+                    previousMouseX = currentX;
+                    
+                    // 選択されたブロックをドラッグでスライドさせる
+                    const targetObj = blocks.find(b => b.mesh === selectedBlock);
+                    if (targetObj) {
+                        targetObj.body.position.x += deltaX * 0.02;
+                        extractedBlockData = targetObj;
+                    }
+                }
             });
 
-            window.addEventListener('touchend', () => { isDragging = false; });
+            window.addEventListener('touchend', () => {
+                isViewDragging = false;
+                if (isDraggingBlock && gameState === 'action') {
+                    isDraggingBlock = false;
+                    // 一定以上動かしたら抜き取り成功判定へ
+                    startSuccessCheckTimer();
+                }
+            });
+
+            // マウス用ドラッグ（PCテスト用）
+            window.addEventListener('mousedown', (e) => {
+                if (e.target.closest('#gui-panel') || e.target.closest('#confirm-popup') || e.target.closest('#gauge-overlay') || e.target.closest('.arrow-btn')) return;
+                if (gameState === 'action') {
+                    isDraggingBlock = true;
+                    previousMouseX = e.clientX;
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (isDraggingBlock && gameState === 'action' && selectedBlock) {
+                    const deltaX = e.clientX - previousMouseX;
+                    previousMouseX = e.clientX;
+                    const targetObj = blocks.find(b => b.mesh === selectedBlock);
+                    if (targetObj) {
+                        targetObj.body.position.x += deltaX * 0.02;
+                        extractedBlockData = targetObj;
+                    }
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isDraggingBlock && gameState === 'action') {
+                    isDraggingBlock = false;
+                    startSuccessCheckTimer();
+                }
+            });
 
             // タップ選択
             window.addEventListener('click', (e) => {
@@ -529,11 +577,9 @@
                     const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh));
 
                     if (intersects.length > 0) {
-                        const hitMesh = intersects[0].object;
-                        selectBlockForConfirmation(hitMesh);
+                        selectBlockForConfirmation(intersects[0].object);
                     }
                 } else if (gameState === 'place') {
-                    // 上から見た配置微調整（ツンツンして置く位置を決定）
                     placeExtractedBlock();
                 }
             });
@@ -581,21 +627,17 @@
                 selectedBlock.material.color.setHex(selectedBlock.userData.originalColor);
             }
             selectedBlock = mesh;
-            selectedBlock.material.color.setHex(0xff0000); // 赤く表示
+            selectedBlock.material.color.setHex(0xff0000);
             confirmPopup.classList.remove('hidden');
         }
 
-        // --- アクションフェーズ開始（物理演算有効化） ---
         function startActionPhase() {
             gameState = 'action';
-            isZoomed = true; // 5段分の拡大表示
+            isZoomed = true;
             document.getElementById('zoom-btn').textContent = '縮小表示';
-            
-            // 支点を選択されたブロックの高さに合わせる
             lookAtY = selectedBlock.position.y;
             updateCameraPosition();
 
-            // すべてのブロックに重み（mass = 1.0）を与え、物理演算を有効化開始！
             blocks.forEach(b => {
                 b.body.mass = 1.0;
                 b.body.updateMassProperties();
@@ -603,10 +645,9 @@
             });
 
             document.getElementById('punch-btn').classList.add('active');
-            showBanner('アクションモード開始！棒を押し出すか打ち抜け！');
+            showBanner('【アクション】棒をスライドして引き抜くか、打ち抜くボタン！');
         }
 
-        // 威力ゲージ
         let isAnimatingGauge = false;
         let gaugePos = 0;
         let gaugeDir = 1;
@@ -634,7 +675,6 @@
             let power = Math.floor(Math.abs(gaugePos - 45) * 2 + 10);
             showBanner(`威力: ${power}！ 打ち抜き発動！`);
 
-            // 選択棒を弾き飛ばす
             const target = blocks.find(b => b.mesh === selectedBlock);
             if (target) {
                 target.body.velocity.set(0, 3, 12);
@@ -642,11 +682,9 @@
                 extractedBlockData = target;
             }
 
-            // 3秒間の成功判定タイマー開始
             startSuccessCheckTimer();
         }
 
-        // --- 3秒間ジェンガが倒れないか判定するタイマー ---
         function startSuccessCheckTimer() {
             gameState = 'check';
             document.getElementById('punch-btn').classList.remove('active');
@@ -664,9 +702,7 @@
             }, 1000);
         }
 
-        // タワーが崩れていないか判定
         function checkTowerStability() {
-            // 簡易崩壊判定：いずれかのブロックが大きく落ちていないか・傾いていないか
             let isCollapsed = false;
             blocks.forEach(b => {
                 if (b !== extractedBlockData && (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4)) {
@@ -678,18 +714,14 @@
                 gameState = 'gameover';
                 showBanner('GAME OVER: タワーが崩れました！');
             } else {
-                // 3秒経過成功！物理演算を停止して固定
                 freezeTower();
                 score++;
                 document.getElementById('score-count').textContent = score;
                 showBanner('抜き取り成功！ 上部に配置してください');
-                
-                // 配置フェーズへ
                 startPlacementPhase();
             }
         }
 
-        // 物理演算停止＆強制固定
         function freezeTower() {
             blocks.forEach(b => {
                 b.body.mass = 0;
@@ -700,10 +732,8 @@
             });
         }
 
-        // --- 配置（積み上げ）フェーズ ---
         function startPlacementPhase() {
             gameState = 'place';
-            // 上から見た画面にカメラを移動
             lookAtY = 15;
             cameraAngle = 0;
             isZoomed = false;
@@ -711,23 +741,20 @@
 
             if (extractedBlockData) {
                 extractedBlockData.mesh.material.transparent = true;
-                extractedBlockData.mesh.material.opacity = 0.6; // 半透明表示
+                extractedBlockData.mesh.material.opacity = 0.6;
             }
         }
 
         function placeExtractedBlock() {
             if (!extractedBlockData) return;
-
             showBanner('配置位置決定！安定確認中...(3秒)');
             
-            // 塔の最上部に移動させる
             let topY = 20 * 0.6 + 0.6;
             extractedBlockData.body.position.set(0, topY, 0);
             extractedBlockData.mesh.material.transparent = false;
             extractedBlockData.mesh.material.opacity = 1.0;
             extractedBlockData.mesh.material.color.setHex(extractedBlockData.mesh.userData.originalColor);
 
-            // 再度物理演算をオンにして3秒確認
             blocks.forEach(b => {
                 b.body.mass = 1.0;
                 b.body.updateMassProperties();
@@ -776,7 +803,6 @@
             }
         }
 
-        // --- メインループ ---
         const clock = new THREE.Clock();
 
         function animate() {
@@ -784,13 +810,13 @@
 
             const delta = clock.getDelta();
             if (world) {
-                // アクション中または確認中のみワールドステップを回す（視点操作時は完全に固定）
                 if (gameState === 'action' || gameState === 'check') {
                     world.step(1 / 60, delta, 3);
-                    for (let i = 0; i < blocks.length; i++) {
-                        blocks[i].mesh.position.copy(blocks[i].body.position);
-                        blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
-                    }
+                }
+                // 毎フレーム必ずメッシュとボディの位置を同期
+                for (let i = 0; i < blocks.length; i++) {
+                    blocks[i].mesh.position.copy(blocks[i].body.position);
+                    blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
                 }
             }
 
