@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ジェンガアタック</title>
-    <!-- Three.js & Cannon.js -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>YOSHIO JENGGA</title>
+    <!-- Three.js & Cannon.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
     <style>
@@ -12,1735 +12,719 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            margin: 0;
-            padding: 0;
-            font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
-            touch-action: none;
         }
         body, html {
+            margin: 0;
+            padding: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            overscroll-behavior: none;
-            background-color: #000;
-            color: #fff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(to bottom, #4a90e2, #87ceeb);
         }
-
-        #app-container {
-            width: 100vw;
-            height: 100vh;
-            max-width: 480px;
-            max-height: 900px;
-            position: relative;
+        
+        /* 共通画面スタイル */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             display: flex;
-            flex-direction: column;
-            background: #1a1a1a;
-            box-shadow: 0 0 20px rgba(0,0,0,0.8);
-            overflow: hidden;
-        }
-
-        #pc-block-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95);
-            z-index: 9999;
-            display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            z-index: 10;
+        }
+        .hidden {
+            display: none !important;
+        }
+
+        /* タイトル画面 */
+        #title-screen {
+            background: linear-gradient(to bottom, #1e3c72, #2a5298);
+            color: white;
             text-align: center;
-            padding: 20px;
         }
-        @media (min-width: 769px) {
-            #pc-block-overlay { display: flex; }
+        .game-title {
+            font-size: 2.8rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .blink-start {
+            font-size: 1.5rem;
+            padding: 15px 40px;
+            background: #ffcc00;
+            color: #333;
+            border: none;
+            border-radius: 30px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(255,204,0,0.4);
+            animation: blink 1s infinite alternate;
+            cursor: pointer;
+        }
+        @keyframes blink {
+            0% { opacity: 0.3; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
         }
 
-        #canvas-container {
-            width: 100%;
-            height: 65%;
-            position: relative;
-            touch-action: none;
+        /* メニュー画面 */
+        #menu-screen {
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
         }
-        #three-canvas {
-            width: 100%;
-            height: 100%;
+        .menu-btn {
+            width: 240px;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 1.1rem;
+            font-weight: bold;
+            background: white;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .menu-btn:active {
+            transform: scale(0.95);
+            background: #eee;
+        }
+
+        /* ゲーム画面 */
+        #game-screen {
             display: block;
         }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
 
-        .cam-arrow {
+        /* 左右回転矢印 */
+        .arrow-btn {
             position: absolute;
             top: 50%;
             transform: translateY(-50%);
-            width: 45px;
-            height: 45px;
-            background: rgba(255, 255, 255, 0.25);
-            border: 2px solid rgba(255, 255, 255, 0.6);
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.8);
             border-radius: 50%;
-            color: white;
             font-size: 24px;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 5;
+            cursor: pointer;
+            backdrop-filter: blur(2px);
+        }
+        #arrow-left { left: 15px; }
+        #arrow-right { right: 15px; }
+
+        /* 左側GUIパネル */
+        #gui-panel {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            z-index: 5;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            width: 150px;
+        }
+        .gui-row {
+            margin-bottom: 8px;
+        }
+        .gui-btn {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            background: #ff5722;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .gui-btn:disabled {
+            background: #555;
+            color: #aaa;
+            cursor: not-allowed;
+        }
+        #punch-btn {
+            background: #e91e63;
+            display: none; /* アクション中のみ表示・点灯 */
+        }
+        #punch-btn.active {
+            display: block;
+            animation: pulse-punch 0.8s infinite alternate;
+        }
+        @keyframes pulse-punch {
+            0% { transform: scale(1); box-shadow: 0 0 5px #ff4081; }
+            100% { transform: scale(1.05); box-shadow: 0 0 15px #ff4081; }
+        }
+
+        /* 確認ポップアップ */
+        #confirm-popup {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 20;
-            cursor: pointer;
         }
-        #cam-left { left: 10px; }
-        #cam-right { right: 10px; }
-
-        #gui-container {
-            width: 100%;
-            height: 35%;
-            background: rgba(20, 20, 30, 0.98);
-            border-top: 2px solid #444;
-            display: flex;
-            flex-direction: column;
-            padding: 10px;
-            gap: 8px;
-            z-index: 10;
-        }
-
-        .gui-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .player-list-mini {
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            width: 100%;
-        }
-        .player-card {
-            background: #2a2a3a;
-            padding: 6px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            min-width: 75px;
-            border: 1px solid #555;
-        }
-        .player-card.active {
-            border-color: #ffcc00;
-            background: #3a3a2a;
-        }
-        .player-card .hp-bar {
-            height: 6px;
-            background: #ff4444;
-            width: 100%;
-            margin-top: 3px;
-            border-radius: 3px;
-        }
-
-        .item-grid {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 6px;
-        }
-        .item-btn {
-            background: #334;
-            color: #888;
-            border: 1px solid #555;
-            padding: 8px 0;
-            font-size: 11px;
-            border-radius: 6px;
+        .popup-box {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
             text-align: center;
+            width: 80%;
+            max-width: 300px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .popup-box p {
+            font-size: 1.1rem;
             font-weight: bold;
-            cursor: pointer;
+            margin-bottom: 20px;
+            color: #333;
         }
-        .item-btn.active {
-            background: #ff9900;
-            color: #000;
-            border-color: #fff;
-            box-shadow: 0 0 6px #ff9900;
-        }
-
-        .controls-info {
-            background: #223344;
-            color: #aaddff;
-            text-align: center;
-            padding: 10px;
-            font-size: 12px;
-            border-radius: 6px;
-            border: 1px solid #446688;
-            font-weight: bold;
-        }
-
-        .overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+        .popup-btns {
             display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-            padding: 20px;
-            cursor: pointer;
+            justify-content: space-around;
         }
-        .popup-transparent-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 90;
-            padding: 20px;
-            pointer-events: auto;
-        }
-        .hidden { display: none !important; }
-
-        .title-logo {
-            font-size: 38px;
-            font-weight: 900;
-            color: #ff3333;
-            text-shadow: 0 0 12px #ff0000, 3px 3px 0px #fff;
-            margin-bottom: 50px;
-            text-align: center;
-            letter-spacing: 2px;
-        }
-        .blink-text {
-            animation: blink 1.2s infinite;
-            font-size: 22px;
-            font-weight: bold;
-            color: #ffff00;
-            letter-spacing: 2px;
-        }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-
-        .menu-box {
-            width: 90%;
-            max-width: 320px;
-            background: #222;
-            border: 2px solid #555;
+        .pop-btn {
+            padding: 10px 30px;
+            border: none;
             border-radius: 8px;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            text-align: center;
-            cursor: default;
-        }
-        .menu-btn {
-            background: #444;
-            color: #fff;
-            padding: 12px;
-            border: 1px solid #777;
-            border-radius: 6px;
-            font-size: 15px;
             font-weight: bold;
+            font-size: 1rem;
             cursor: pointer;
         }
-        .menu-btn:active { background: #666; }
-        
-        .num-select-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .num-btn {
-            background: #334455;
-            color: #fff;
-            border: 1px solid #6688aa;
-            padding: 12px 0;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        .num-btn:active { background: #557799; }
+        #pop-ok { background: #4caf50; color: white; }
+        #pop-no { background: #f44336; color: white; }
 
-        input[type="text"] {
-            width: 100%;
-            padding: 12px;
-            font-size: 14px;
-            text-align: center;
-            border-radius: 4px;
-            border: 1px solid #666;
-            background: #111;
-            color: #fff;
-        }
-
-        #turn-banner {
+        /* 威力ゲージオーバーレイ */
+        #gauge-overlay {
             position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.85);
-            border: 3px solid #ffcc00;
-            color: #ffcc00;
-            padding: 16px 32px;
-            font-size: 26px;
-            font-weight: bold;
-            border-radius: 12px;
-            z-index: 70;
-            pointer-events: none;
-            text-shadow: 0 0 10px #ff0000;
-            text-align: center;
-            box-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
-        }
-
-        #central-battle-status {
-            position: absolute;
-            top: 15%; left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.75);
-            border: 2px solid #ff3333;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 15px;
-            font-weight: bold;
-            color: #fff;
-            z-index: 85;
-            text-align: center;
-            pointer-events: none;
-            box-shadow: 0 0 15px rgba(255, 51, 51, 0.6);
-            display: flex;
-            gap: 12px;
-            white-space: nowrap;
-        }
-
-        #power-gauge-overlay {
-            position: absolute;
-            top: 40%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 85%;
-            background: rgba(0,0,0,0.92);
-            border: 2px solid #fff;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            z-index: 95;
-        }
-        .gauge-bar-bg {
-            width: 100%;
-            height: 35px;
-            background: linear-gradient(to right, blue 0%, red 100%);
-            position: relative;
-            margin: 15px 0;
-            border-radius: 17px;
-            overflow: hidden;
-        }
-        .gauge-bar-bg.vertical-gauge {
-            width: 40px;
-            height: 180px;
-            background: linear-gradient(to top, blue 0%, red 100%);
-            margin: 15px auto;
-            border-radius: 20px;
-        }
-        .gauge-pointer {
-            width: 6px;
-            height: 100%;
-            background: #fff;
-            position: absolute;
-            top: 0; left: 0%;
-            box-shadow: 0 0 5px #000;
-        }
-        .gauge-bar-bg.vertical-gauge .gauge-pointer {
-            width: 100%;
-            height: 6px;
-            top: auto;
-            bottom: 0%;
+            top: 0;
             left: 0;
-        }
-
-        .power-impact-text {
-            font-size: 32px;
-            font-weight: 900;
-            color: #ff3300;
-            text-shadow: 0 0 10px #ffff00;
-        }
-        .guard-impact-text {
-            font-size: 28px;
-            font-weight: 900;
-            color: #0099ff;
-            text-shadow: 0 0 10px #00ffff;
-        }
-
-        .target-select-list {
-            display: flex;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
             flex-direction: column;
-            gap: 8px;
-            margin-top: 10px;
+            justify-content: center;
+            align-items: center;
+            z-index: 25;
+            color: white;
         }
-
-        #spit-overlay {
+        .gauge-bar-container {
+            width: 80%;
+            max-width: 350px;
+            height: 40px;
+            background: #333;
+            border: 3px solid #fff;
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .gauge-cursor {
+            width: 30px;
+            height: 34px;
+            background: #ffeb3b;
+            border-radius: 50%;
             position: absolute;
-            top:0; left:0; width:100%; height:100%;
+            top: 0;
+            left: 0;
+            box-shadow: 0 0 10px #ffeb3b;
+        }
+        .gauge-stop-btn {
+            padding: 15px 40px;
+            background: #ff9800;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(255,152,0,0.5);
+        }
+
+        /* 演出テキスト・メッセージ */
+        #message-banner {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ffeb3b;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+            z-index: 30;
             pointer-events: none;
-            z-index: 80;
-            background: radial-gradient(circle at 30% 40%, rgba(200,255,0,0.4) 0%, transparent 20%),
-                        radial-gradient(circle at 70% 60%, rgba(150,255,0,0.5) 0%, transparent 25%),
-                        radial-gradient(circle at 50% 20%, rgba(220,255,0,0.3) 0%, transparent 15%);
-        }
-
-        .shake {
-            animation: shake 0.3s infinite;
-        }
-        @keyframes shake {
-            0% { transform: translate(0, 0); }
-            20% { transform: translate(-10px, 5px); }
-            40% { transform: translate(10px, -5px); }
-            60% { transform: translate(-5px, -10px); }
-            80% { transform: translate(5px, 10px); }
-            100% { transform: translate(0, 0); }
-        }
-
-        .battle-flash {
-            animation: flashAnim 0.5s ease-in-out;
-        }
-        @keyframes flashAnim {
-            0% { background-color: rgba(255,0,0,0); }
-            50% { background-color: rgba(255,0,0,0.6); }
-            100% { background-color: rgba(255,0,0,0); }
+            transition: 0.3s;
         }
     </style>
 </head>
 <body>
 
-<div id="pc-block-overlay">
-    <h2 style="color: #ff3333; margin-bottom: 15px;">⚠️ スマホ専用ゲームです</h2>
-    <p style="font-size: 14px; color: #ccc; line-height: 1.6;">
-        このゲームはスマートフォン専用です。<br>
-        スマートフォン（またはブラウザの開発者ツールでスマホビュー、画面幅768px以下）よりアクセスしてください。
-    </p>
-</div>
-
-<div id="app-container">
-    <div id="canvas-container">
-        <canvas id="three-canvas"></canvas>
-        <div class="cam-arrow" id="cam-left" onclick="rotateCam(-1)">‹</div>
-        <div class="cam-arrow" id="cam-right" onclick="rotateCam(1)">›</div>
-        <div id="turn-banner" class="hidden">〇〇の番です</div>
-        <div id="central-battle-status" class="hidden"></div>
-        <div id="spit-overlay" class="hidden"></div>
+    <!-- 1. タイトル画面 -->
+    <div id="title-screen" class="screen">
+        <div class="game-title">YOSHIO JENGGA</div>
+        <button class="blink-start" id="start-trigger">スタート</button>
     </div>
 
-    <div id="gui-container">
-        <div class="gui-row">
-            <div class="player-list-mini" id="gui-player-list"></div>
-        </div>
-
-        <div class="item-grid">
-            <div class="item-btn" id="item-ojama" onclick="useItem('ojama')">お邪魔<br><span id="count-ojama">0</span></div>
-            <div class="item-btn" id="item-sneeze" onclick="useItem('sneeze')">くしゃみ<br><span id="count-sneeze">0</span></div>
-            <div class="item-btn" id="item-renzoku" onclick="useItem('renzoku')">連続<br><span id="count-renzoku">0</span></div>
-            <div class="item-btn" id="item-pass" onclick="useItem('pass')">パス<br><span id="count-pass">0</span></div>
-            <div class="item-btn" id="item-ganriki" onclick="useItem('ganriki')">眼力<br><span id="count-ganriki">0</span></div>
-            <div class="item-btn" id="item-rob" onclick="useItem('rob')">強奪<br><span id="count-rob">0</span></div>
-        </div>
-
-        <div class="controls-info">
-            💡 左右矢印: 回転 | ダブルタップ: 近接/全体 | 上下スワイプ: 高さ移動
-        </div>
+    <!-- 2. メニュー画面 -->
+    <div id="menu-screen" class="screen hidden">
+        <div class="game-title" style="font-size: 2rem; margin-bottom: 30px;">MENU</div>
+        <button class="menu-btn" id="btn-solo">ひとりで遊ぶ</button>
+        <button class="menu-btn" id="btn-host">ホスト (準備中)</button>
+        <button class="menu-btn" id="btn-guest">ゲスト (準備中)</button>
+        <button class="menu-btn" id="btn-exit" style="background:#ffdddd; color:#d9534f;">終了</button>
     </div>
 
-    <!-- ① タイトル画面 -->
-    <div id="title-screen" class="overlay" onclick="showMenu()">
-        <div class="title-logo">ジェンガアタック３</div>
-        <div class="blink-text">スタート</div>
+    <!-- 3. ゲーム画面 -->
+    <div id="game-screen" class="screen hidden">
+        <div id="canvas-container"></div>
+
+        <!-- 左右回転矢印 -->
+        <div class="arrow-btn" id="arrow-left">◀</div>
+        <div class="arrow-btn" id="arrow-right">▶</div>
+
+        <!-- 左側GUI -->
+        <div id="gui-panel">
+            <div class="gui-row">P: <span id="player-name">YOSHIO</span></div>
+            <div class="gui-row">獲得: <span id="score-count">0</span> 本</div>
+            <div class="gui-row">パス残: <span id="pass-count">2</span> 回</div>
+            <button class="gui-btn" id="pass-btn">パスする</button>
+            <button class="gui-btn" id="zoom-btn">拡大表示</button>
+            <button class="gui-btn" id="punch-btn">打ち抜く！</button>
+        </div>
+
+        <!-- 成功・演出メッセージ -->
+        <div id="message-banner"></div>
     </div>
 
-    <!-- ② メニュー画面群 -->
-    <div id="menu-screen" class="overlay hidden" style="cursor: default;">
-        <!-- 初期項目: 1.ホスト / 2.ゲスト / 3.終了 -->
-        <div class="menu-box" id="menu-main">
-            <h3>メニュー</h3>
-            <button class="menu-btn" onclick="selectHost()">１，ホスト</button>
-            <button class="menu-btn" onclick="selectGuest()">２，ゲスト</button>
-            <button class="menu-btn" onclick="location.reload()">３，終了</button>
-        </div>
-
-        <!-- プレイヤーネーム入力 -->
-        <div class="menu-box hidden" id="menu-name">
-            <h3>プレイヤーネーム</h3>
-            <p style="font-size:11px; color:#aaa;">(ひらがな・数字 6文字まで)</p>
-            <input type="text" id="player-name-input" maxlength="6" placeholder="なまえ">
-            <button class="menu-btn" onclick="submitName()">決定</button>
-        </div>
-
-        <!-- 何人で遊ぶかを決定（ホスト用 最大5人） -->
-        <div class="menu-box hidden" id="menu-player-count">
-            <h3>対戦人数選択</h3>
-            <p style="font-size:11px; color:#aaa;">何人で遊ぶかを指定してください (最大5人)</p>
-            <div class="num-select-grid">
-                <button class="num-btn" onclick="setPlayerCount(1)">１人</button>
-                <button class="num-btn" onclick="setPlayerCount(2)">２人</button>
-                <button class="num-btn" onclick="setPlayerCount(3)">３人</button>
-                <button class="num-btn" onclick="setPlayerCount(4)">４人</button>
-                <button class="num-btn" onclick="setPlayerCount(5)">５人</button>
+    <!-- 確認ポップアップ -->
+    <div id="confirm-popup" class="hidden">
+        <div class="popup-box">
+            <p>この棒でよいですか？</p>
+            <div class="popup-btns">
+                <button class="pop-btn" id="pop-no">NO</button>
+                <button class="pop-btn" id="pop-ok">OK</button>
             </div>
         </div>
-
-        <!-- ゲスト用: 4桁ルームID入力 -->
-        <div class="menu-box hidden" id="menu-guest-id">
-            <h3>4桁ルームID入力</h3>
-            <p style="font-size:10px; color:#aaa;">ホストから共有された4桁の数字を入力してください</p>
-            <input type="text" id="guest-id-input" maxlength="4" placeholder="例: 4821">
-            <button class="menu-btn" onclick="connectGuest()">接続</button>
-        </div>
-
-        <!-- オンラインロビー -->
-        <div class="menu-box hidden" id="menu-lobby">
-            <h3>接続待機中...</h3>
-            <div style="font-size:18px; font-weight:bold; color:#ffcc00; margin:5px 0;" id="room-id-display">4桁ID: 読み込み中...</div>
-            <div id="joined-players-list" style="text-align:left; font-size:12px; margin:10px 0; max-height:120px; overflow-y:auto;"></div>
-            <div id="lobby-waiting-msg" style="font-size:12px; color:#ffcc00;">プレイヤーの参加を待っています...</div>
-            <button class="menu-btn hidden" id="btn-start-roulette" onclick="startOrderRoulette()">順番決めルーレット開始</button>
-        </div>
     </div>
 
-    <div id="popup-overlay" class="popup-transparent-overlay hidden">
-        <div class="menu-box" id="popup-content">
-            <h3 id="popup-title">タイトル</h3>
-            <div id="popup-body">本文</div>
-            <button class="menu-btn" id="popup-btn" onclick="closePopup()">OK</button>
+    <!-- 威力ゲージオーバーレイ -->
+    <div id="gauge-overlay">
+        <h2 style="margin:0; text-shadow:0 2px 5px rgba(0,0,0,0.5);">威力ゲージ</h2>
+        <div class="gauge-bar-container" id="gauge-container">
+            <div class="gauge-cursor" id="gauge-cursor"></div>
         </div>
+        <button class="gauge-stop-btn" id="gauge-stop-btn">ストップ！</button>
     </div>
 
-    <div id="power-gauge-overlay" class="hidden">
-        <h3 id="gauge-owner-title">ターンプレイヤー</h3>
-        <div class="gauge-bar-bg">
-            <div class="gauge-pointer" id="gauge-pointer"></div>
-        </div>
-        <div style="display:flex; justify-content:space-between; font-size:10px;">
-            <span>0</span><span>100</span>
-        </div>
-        <div id="gauge-val-display" style="font-size:22px; font-weight:bold; margin:8px 0;">50</div>
-        <button class="menu-btn" id="gauge-stop-btn" onclick="stopGauge()">STOP!</button>
-    </div>
-</div>
+    <script>
+        // --- アプリケーション状態管理 ---
+        let currentScreen = 'title';
+        let isZoomed = false;
+        let isActionActive = false;
+        let selectedBlock = null;
+        let passRemaining = 2;
+        let score = 0;
+        let isAnimatingGauge = false;
+        let gaugePos = 0;
+        let gaugeDir = 1;
 
-<script>
-const JSONBIN_API_KEY = "$2a$10$p.cJHnRnt3oBn8Mtny/WpOekHU3EyeeZj0MUaHY2sDWoFNV1wjIN.";
-const MASTER_BOARD_BIN_ID = "6a954f24f5f4af5e29572441";
-
-const STATE = {
-    mode: 'TITLE',
-    isHost: false,
-    maxPlayers: 5,
-    myIndex: 0,
-    players: [],
-    turnIndex: 0,
-    selectedBlock: null,
-    camAngle: 0,
-    camHeight: 12,
-    isZoomed: false,
-    gaugeRunning: false,
-    gaugeSpeed: 2,
-    gaugePos: 0,
-    gaugeDir: 1,
-    powerScore: 0,
-    guardScore: 0,
-    phase: 'SELECT',
-    physicsActive: false,
-    physicsTimer: 0,
-    targetPlayerIndex: 0,
-    angleHVal: 50,
-    angleVVal: 50,
-    roomPin: null,
-    myRoomBinId: null,
-    myName: ""
-};
-
-const HAND_SKINS = [
-    { skin: 0xffdbac, nail: 0xff0055 },
-    { skin: 0x8d5524, nail: 0x00ffff },
-    { skin: 0xe0ac69, nail: 0x9900cc },
-    { skin: 0xf1c27d, nail: 0x00ff00 },
-    { skin: 0xc68642, nail: 0xff6600 }
-];
-
-let scene, camera, renderer, world;
-let blocks = [];
-let handMeshes = [];
-let trajectoryLine = null;
-let pollingTimer = null;
-
-function init3D() {
-    const container = document.getElementById('canvas-container');
-    
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
-
-    camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-    updateCameraPosition();
-
-    renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.shadowMap.enabled = true;
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    scene.add(ambientLight);
-
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-    dirLight.position.set(10, 30, 10);
-    dirLight.castShadow = true;
-    scene.add(dirLight);
-
-    createEnvironment();
-
-    world = new CANNON.World();
-    world.gravity.set(0, -9.82, 0);
-    world.broadphase = new CANNON.NaiveBroadphase();
-    world.solver.iterations = 20;
-
-    const woodMaterial = new CANNON.Material('wood');
-    const contactMaterial = new CANNON.ContactMaterial(woodMaterial, woodMaterial, {
-        friction: 0.6,
-        restitution: 0.05
-    });
-    world.addContactMaterial(contactMaterial);
-
-    createTable(woodMaterial);
-    initTouchControls();
-    animate();
-}
-
-function createEnvironment() {
-    const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0, transparent: true, opacity: 0.8 });
-    for (let i = 0; i < 5; i++) {
-        const cloudGroup = new THREE.Group();
-        const count = 3 + Math.floor(Math.random() * 3);
-        for (let j = 0; j < count; j++) {
-            const geo = new THREE.SphereGeometry(1.5 + Math.random(), 8, 8);
-            const mesh = new THREE.Mesh(geo, cloudMat);
-            mesh.position.set(j * 1.5, Math.random() * 0.5, Math.random() * 1);
-            cloudGroup.add(mesh);
-        }
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 25 + Math.random() * 10;
-        cloudGroup.position.set(Math.cos(angle) * dist, 15 + Math.random() * 10, Math.sin(angle) * dist);
-        scene.add(cloudGroup);
-    }
-}
-
-function createTable(material) {
-    const geo = new THREE.CylinderGeometry(6, 6, 1, 32);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x442211, roughness: 0.4 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = -0.5;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-
-    const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Cylinder(6, 6, 1, 32), material: material });
-    groundBody.position.set(0, -0.5, 0);
-    world.addBody(groundBody);
-}
-
-function buildJengaTower() {
-    blocks.forEach(b => {
-        scene.remove(b.mesh);
-        world.remove(b.body);
-    });
-    blocks = [];
-
-    const blockWidth = 1.0;
-    const blockLength = 3.0;
-    const blockHeight = 0.6;
-
-    for (let val = 0; val < 20; val++) {
-        const isRotated = (val % 2 === 1);
-        for (let j = 0; j < 3; j++) {
-            const offset = (j - 1) * (blockWidth + 0.02);
-
-            const geometry = new THREE.BoxGeometry(
-                isRotated ? blockLength : blockWidth,
-                blockHeight,
-                isRotated ? blockWidth : blockLength
-            );
-            
-            const materials = [
-                new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
-                new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
-                new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
-                new THREE.MeshStandardMaterial({ color: 0xd2b48c }),
-                new THREE.MeshStandardMaterial({ color: 0xb58863 }),
-                new THREE.MeshStandardMaterial({ color: 0xb58863 })
-            ];
-
-            const mesh = new THREE.Mesh(geometry, materials);
-
-            const edgesGeo = new THREE.EdgesGeometry(geometry);
-            const edgesMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
-            const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
-            mesh.add(wireframe);
-
-            const posX = isRotated ? 0 : offset;
-            const posY = val * blockHeight + blockHeight / 2;
-            const posZ = isRotated ? offset : 0;
-
-            mesh.position.set(posX, posY, posZ);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            scene.add(mesh);
-
-            const shape = new CANNON.Box(new CANNON.Vec3(
-                (isRotated ? blockLength : blockWidth) / 2,
-                blockHeight / 2,
-                (isRotated ? blockWidth : blockLength) / 2
-            ));
-            
-            const body = new CANNON.Body({ mass: 0, shape: shape });
-            body.position.set(posX, posY, posZ);
-            if (isRotated) {
-                body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
-            }
-            world.addBody(body);
-
-            const blockData = {
-                mesh: mesh,
-                body: body,
-                id: `block_${val}_${j}`,
-                tier: val + 1,
-                isRotated: isRotated
-            };
-            mesh.userData.blockRef = blockData;
-            blocks.push(blockData);
-        }
-    }
-    STATE.physicsActive = false;
-    STATE.physicsTimer = 0;
-}
-
-function createPlayerHands() {
-    handMeshes.forEach(m => scene.remove(m));
-    handMeshes = [];
-
-    STATE.players.forEach((p, idx) => {
-        const angle = (idx / STATE.players.length) * Math.PI * 2;
-        const radius = 8;
+        // --- DOM要素 ---
+        const titleScreen = document.getElementById('title-screen');
+        const menuScreen = document.getElementById('menu-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const confirmPopup = document.getElementById('confirm-popup');
+        const gaugeOverlay = document.getElementById('gauge-overlay');
+        const messageBanner = document.getElementById('message-banner');
         
-        const group = new THREE.Group();
-        const skinMat = new THREE.MeshStandardMaterial({ color: p.handSkin ? p.handSkin.skin : 0xffdbac });
-        const armGeo = new THREE.CylinderGeometry(0.4, 0.5, 3, 16);
-        const arm = new THREE.Mesh(armGeo, skinMat);
-        arm.rotation.x = Math.PI / 3;
-        group.add(arm);
+        // 画面遷移イベント
+        document.getElementById('start-trigger').addEventListener('click', () => {
+            titleScreen.classList.add('hidden');
+            menuScreen.classList.remove('hidden');
+        });
 
-        group.position.set(Math.sin(angle) * radius, 3, Math.cos(angle) * radius);
-        group.lookAt(0, 3, 0);
+        document.getElementById('btn-solo').addEventListener('click', () => {
+            menuScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            initGame3D();
+        });
 
-        scene.add(group);
-        handMeshes.push(group);
-    });
-}
+        document.getElementById('btn-exit').addEventListener('click', () => {
+            window.close();
+            alert('ブラウザのタブを閉じてください。');
+        });
 
-function activatePhysics() {
-    if (STATE.physicsActive) return;
-    STATE.physicsActive = true;
-    STATE.physicsTimer = 0;
+        // --- Three.js & Cannon.js 初期化 ---
+        let scene, camera, renderer, world;
+        let blocks = [];
+        let towerGroup;
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
 
-    blocks.forEach(b => {
-        b.body.mass = 0.8;
-        b.body.updateMassProperties();
-    });
-}
+        // カメラ・視点コントロール用変数
+        let cameraAngle = 0;
+        let cameraHeight = 10;
+        let cameraRadius = 18;
+        let isDragging = false;
+        let previousTouchY = 0;
 
-function updateCameraPosition() {
-    const dist = STATE.isZoomed ? 7 : 22;
-    const targetY = STATE.isZoomed ? STATE.camHeight : 12;
-    const x = Math.sin(STATE.camAngle) * dist;
-    const z = Math.cos(STATE.camAngle) * dist;
-    camera.position.set(x, targetY, z);
-    camera.lookAt(0, STATE.isZoomed ? STATE.camHeight : 6, 0);
-}
+        function initGame3D() {
+            const container = document.getElementById('canvas-container');
 
-function rotateCam(dir) {
-    STATE.camAngle += dir * (Math.PI / 4);
-    updateCameraPosition();
-}
+            // シーン・カメラ・レンダラー
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
 
-let lastTapTime = 0;
-let touchStartY = 0;
-let touchStartX = 0;
-let touchStartTime = 0;
-let isLongPress = false;
-let longPressTimer = null;
-
-function initTouchControls() {
-    const container = document.getElementById('canvas-container');
-
-    window.addEventListener('touchmove', (e) => {
-        if (e.target.tagName !== 'INPUT') {
-            e.preventDefault();
-        }
-    }, { passive: false });
-
-    container.addEventListener('pointerdown', (e) => {
-        touchStartX = e.clientX;
-        touchStartY = e.clientY;
-        touchStartTime = Date.now();
-        isLongPress = false;
-
-        if (longPressTimer) clearTimeout(longPressTimer);
-        longPressTimer = setTimeout(() => {
-            isLongPress = true;
-        }, 400);
-
-        const currentTime = Date.now();
-        const tapLength = currentTime - lastTapTime;
-        if (tapLength < 300 && tapLength > 0) {
-            if (longPressTimer) clearTimeout(longPressTimer);
-            isLongPress = true;
-            STATE.isZoomed = !STATE.isZoomed;
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
             updateCameraPosition();
-        }
-        lastTapTime = currentTime;
-    });
 
-    container.addEventListener('pointermove', (e) => {
-        if (Math.abs(e.clientX - touchStartX) > 10 || Math.abs(e.clientY - touchStartY) > 10) {
-            if (longPressTimer) clearTimeout(longPressTimer);
-            isLongPress = true;
-        }
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
 
-        if (STATE.isZoomed && e.buttons === 1) {
-            const diff = touchStartY - e.clientY;
-            if (Math.abs(diff) > 10) {
-                if (diff > 0) {
-                    STATE.camHeight = Math.min(18, STATE.camHeight + 0.2);
-                } else {
-                    STATE.camHeight = Math.max(1, STATE.camHeight - 0.2);
+            // 物理ワールド
+            world = new CANNON.World();
+            world.gravity.set(0, -9.82, 0);
+
+            // ライティング
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(15, 30, 15);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            // 台座 (Base)
+            const baseGeo = new THREE.BoxGeometry(6, 1, 6);
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+            const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+            baseMesh.position.y = -0.5;
+            scene.add(baseMesh);
+
+            const baseShape = new CANNON.Box(new CANNON.Vec3(3, 0.5, 3));
+            const baseBody = new CANNON.Body({ mass: 0 });
+            baseBody.addShape(baseShape);
+            baseBody.position.set(0, -0.5, 0);
+            world.addBody(baseBody);
+
+            // ジェンガブロック生成 (20段 × 3本 = 60本)
+            towerGroup = new THREE.Group();
+            scene.add(towerGroup);
+
+            const blockWidth = 1.2;
+            const blockHeight = 0.6;
+            const blockDepth = 3.6;
+            const massPerBlock = 1.0;
+
+            const blockShape = new CANNON.Box(new CANNON.Vec3(blockWidth/2, blockHeight/2, blockDepth/2));
+
+            for (let i = 0; i < 20; i++) {
+                let y = blockHeight/2 + i * blockHeight;
+                let isEven = (i % 2 === 0);
+
+                for (let j = 0; j < 3; j++) {
+                    let x = 0, z = 0;
+                    let rotY = 0;
+
+                    if (isEven) {
+                        // 横向き (X軸方向)
+                        x = (j - 1) * 1.25;
+                        rotY = 0;
+                    } else {
+                        // 縦向き (Z軸方向)
+                        z = (j - 1) * 1.25;
+                        rotY = Math.PI / 2;
+                    }
+
+                    // Three.js メッシュ
+                    const geo = new THREE.BoxGeometry(blockWidth, blockHeight, blockDepth);
+                    const mat = new THREE.MeshStandardMaterial({ color: 0xDEB887, roughness: 0.4 });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    
+                    // ユーザーデータとして管理用情報を持たせる
+                    mesh.userData = { id: blocks.length, originalColor: 0xDEB887, isSelected: false };
+                    towerGroup.add(mesh);
+
+                    // Cannon.js ボディ
+                    const body = new CANNON.Body({ mass: massPerBlock });
+                    body.addShape(blockShape);
+                    
+                    // 回転を考慮した初期位置・姿勢
+                    body.position.set(x, y, z);
+                    body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), rotY);
+                    world.addBody(body);
+
+                    blocks.push({ mesh, body });
                 }
-                touchStartY = e.clientY;
+            }
+
+            // イベント登録
+            initEvents();
+
+            // ループ開始
+            animate();
+        }
+
+        // カメラ位置計算
+        function updateCameraPosition() {
+            let targetY = isZoomed ? 3 : cameraHeight;
+            let targetRadius = isZoomed ? 6 : cameraRadius;
+            
+            const rad = cameraAngle * Math.PI / 180;
+            camera.position.x = Math.sin(rad) * targetRadius;
+            camera.position.z = Math.cos(rad) * targetRadius;
+            camera.position.y = targetY;
+            camera.lookAt(0, isZoomed ? 3 : 6, 0);
+        }
+
+        // --- 操作・イベントハンドリング ---
+        function initEvents() {
+            // 左右回転ボタン
+            document.getElementById('arrow-left').addEventListener('click', () => {
+                cameraAngle -= 45;
                 updateCameraPosition();
-            }
-        }
-    });
-
-    container.addEventListener('pointerup', (e) => {
-        if (longPressTimer) clearTimeout(longPressTimer);
-        
-        if (!isLongPress && (Date.now() - touchStartTime < 400)) {
-            handleBlockSelection(e.clientX, e.clientY);
-        }
-    });
-}
-
-function handleBlockSelection(clientX, clientY) {
-    if (STATE.mode !== 'GAME' || STATE.phase !== 'SELECT') return;
-    if (STATE.turnIndex !== STATE.myIndex) return;
-
-    const rect = renderer.domElement.getBoundingClientRect();
-    if (clientY < rect.top || clientY > rect.bottom || clientX < rect.left || clientX > rect.right) return;
-
-    const mouse = new THREE.Vector2(
-        ((clientX - rect.left) / rect.width) * 2 - 1,
-        -((clientY - rect.top) / rect.height) * 2 + 1
-    );
-
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, camera);
-    
-    const allMeshes = blocks.map(b => b.mesh);
-    const intersects = raycaster.intersectObjects(allMeshes, true);
-
-    if (intersects.length > 0) {
-        let hitObject = intersects[0].object;
-        let blockObj = null;
-        while (hitObject) {
-            if (hitObject.userData && hitObject.userData.blockRef) {
-                blockObj = hitObject.userData.blockRef;
-                break;
-            }
-            hitObject = hitObject.parent;
-        }
-
-        if (blockObj) {
-            STATE.selectedBlock = blockObj;
-            showJengaConfirmPopup(blockObj);
-        }
-    }
-}
-
-function showJengaConfirmPopup(blockObj) {
-    let html = `<div style="margin: 10px 0; font-size:14px;">このジェンガブロックを選択しますか？</div>`;
-    html += `<div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">`;
-    html += `<button class="menu-btn" style="background:#44aa44; flex:1; padding:10px;" onclick="onJengaConfirm(true)">OK</button>`;
-    html += `<button class="menu-btn" style="background:#aa4444; flex:1; padding:10px;" onclick="onJengaConfirm(false)">キャンセル</button>`;
-    html += `</div>`;
-    showPopup("ジェンガ選択確認", html, "", null);
-}
-
-window.onJengaConfirm = function(isOk) {
-    closePopup();
-    if (isOk) {
-        selectTargetPlayer();
-    } else {
-        STATE.selectedBlock = null;
-    }
-};
-
-function animate() {
-    requestAnimationFrame(animate);
-
-    if (STATE.mode === 'GAME' && STATE.physicsActive) {
-        world.step(1 / 60);
-        for (let i = 0; i < blocks.length; i++) {
-            blocks[i].mesh.position.copy(blocks[i].body.position);
-            blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
-        }
-
-        STATE.physicsTimer++;
-        if (STATE.physicsTimer > 1200) {
-            STATE.physicsActive = false;
-        } else {
-            checkCollapse();
-        }
-    }
-
-    if (STATE.gaugeRunning) {
-        STATE.gaugePos += STATE.gaugeSpeed * STATE.gaugeDir;
-        if (STATE.gaugePos >= 100 || STATE.gaugePos <= 0) {
-            STATE.gaugeDir *= -1;
-        }
-        const pointer = document.getElementById('gauge-pointer');
-        const valDisp = document.getElementById('gauge-val-display');
-        const bg = document.querySelector('.gauge-bar-bg');
-        
-        if (bg.classList.contains('vertical-gauge')) {
-            pointer.style.bottom = STATE.gaugePos + '%';
-            pointer.style.top = 'auto';
-        } else {
-            pointer.style.left = STATE.gaugePos + '%';
-            pointer.style.bottom = 'auto';
-        }
-        valDisp.innerText = Math.floor(STATE.gaugePos);
-    }
-
-    renderer.render(scene, camera);
-}
-
-function showMenu() {
-    document.getElementById('title-screen').classList.add('hidden');
-    document.getElementById('menu-screen').classList.remove('hidden');
-    init3D();
-}
-
-function selectHost() {
-    STATE.isHost = true;
-    document.getElementById('menu-main').classList.add('hidden');
-    document.getElementById('menu-name').classList.remove('hidden');
-}
-
-function selectGuest() {
-    STATE.isHost = false;
-    document.getElementById('menu-main').classList.add('hidden');
-    document.getElementById('menu-name').classList.remove('hidden');
-}
-
-function submitName() {
-    const input = document.getElementById('player-name-input').value.trim();
-    const regex = /^[ぁ-んー0-9]+$/;
-    
-    if (!input || input.length > 6 || (!regex.test(input) && input !== "debug")) {
-        alert("ひらがな・数字のみ、6文字以内で入力してください。");
-        return;
-    }
-
-    STATE.myName = input;
-    document.getElementById('menu-name').classList.add('hidden');
-
-    if (STATE.isHost) {
-        document.getElementById('menu-player-count').classList.remove('hidden');
-    } else {
-        document.getElementById('menu-guest-id').classList.remove('hidden');
-    }
-}
-
-function setPlayerCount(num) {
-    STATE.maxPlayers = num;
-    document.getElementById('menu-player-count').classList.add('hidden');
-    createRoomWithPin();
-}
-
-async function createRoomWithPin() {
-    const pin = Math.floor(1000 + Math.random() * 9000).toString();
-    STATE.roomPin = pin;
-    STATE.mode = 'LOBBY';
-
-    STATE.players = [{
-        name: STATE.myName,
-        hp: 100, maxHp: 100, score: 0,
-        items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-        handSkin: HAND_SKINS[0]
-    }];
-    STATE.myIndex = 0;
-
-    try {
-        const roomData = {
-            pin: pin,
-            maxPlayers: STATE.maxPlayers,
-            players: STATE.players,
-            phase: 'LOBBY',
-            turnIndex: 0,
-            targetPlayerIndex: 0,
-            powerScore: 0,
-            guardScore: 0
-        };
-
-        const res = await fetch("https://api.jsonbin.io/v3/b", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-Master-Key": JSONBIN_API_KEY,
-                "X-Bin-Private": "false"
-            },
-            body: JSON.stringify(roomData)
-        });
-
-        if (!res.ok) {
-            alert("ルーム作成に失敗しました。");
-            return;
-        }
-
-        const data = await res.json();
-        STATE.myRoomBinId = data.metadata.id;
-        await registerToMasterBoard(pin, STATE.myRoomBinId);
-
-        document.getElementById('room-id-display').innerText = `ルームID: 【 ${pin} 】`;
-        document.getElementById('menu-lobby').classList.remove('hidden');
-        
-        updateLobbyUI();
-        startPolling();
-    } catch(e) {
-        alert("ルーム作成エラー");
-        console.error(e);
-    }
-}
-
-async function registerToMasterBoard(pin, binId) {
-    try {
-        let boardRooms = {};
-        const getRes = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}/latest?_=${Date.now()}`, {
-            headers: { "X-Master-Key": JSONBIN_API_KEY }
-        });
-        if (getRes.ok) {
-            const getData = await getRes.json();
-            boardRooms = getData.record || {};
-        }
-
-        boardRooms[pin] = binId;
-
-        await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}`, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                "X-Master-Key": JSONBIN_API_KEY
-            },
-            body: JSON.stringify(boardRooms)
-        });
-    } catch(e) {
-        console.error("Master board registration error:", e);
-    }
-}
-
-async function connectGuest() {
-    const pin = document.getElementById('guest-id-input').value.trim();
-    if (!pin || pin.length !== 4) {
-        alert("4桁のルームIDを正しく入力してください");
-        return;
-    }
-
-    try {
-        const boardRes = await fetch(`https://api.jsonbin.io/v3/b/${MASTER_BOARD_BIN_ID}/latest?_=${Date.now()}`, {
-            headers: { "X-Master-Key": JSONBIN_API_KEY }
-        });
-
-        if (!boardRes.ok) {
-            alert("ルームの検索に失敗しました。");
-            return;
-        }
-
-        const boardData = await boardRes.json();
-        const boardRooms = boardData.record || {};
-        const targetBinId = boardRooms[pin];
-
-        if (!targetBinId) {
-            alert("指定された4桁の部屋がみつかりません。");
-            return;
-        }
-
-        const roomRes = await fetch(`https://api.jsonbin.io/v3/b/${targetBinId}/latest?_=${Date.now()}`, {
-            headers: { "X-Master-Key": JSONBIN_API_KEY }
-        });
-
-        if (!roomRes.ok) {
-            alert("部屋のデータが見つかりませんでした。");
-            return;
-        }
-
-        const roomJson = await roomRes.json();
-        const foundRoomData = roomJson.record || roomJson;
-
-        STATE.roomPin = pin;
-        STATE.myRoomBinId = targetBinId;
-        STATE.mode = 'LOBBY';
-        STATE.players = foundRoomData.players || [];
-        STATE.maxPlayers = foundRoomData.maxPlayers || 5;
-
-        if (STATE.players.length >= STATE.maxPlayers && !STATE.players.some(p => p.name === STATE.myName)) {
-            alert(`この部屋は満員です (最大${STATE.maxPlayers}人)`);
-            return;
-        }
-
-        if (!STATE.players.some(p => p.name === STATE.myName)) {
-            STATE.players.push({
-                name: STATE.myName,
-                hp: 100, maxHp: 100, score: 0,
-                items: { ojama:0, sneeze:0, renzoku:0, pass:0, ganriki:0, rob:0 },
-                handSkin: HAND_SKINS[STATE.players.length % HAND_SKINS.length]
             });
-            STATE.myIndex = STATE.players.length - 1;
-            
-            await updateRoomData({
-                pin: STATE.roomPin,
-                maxPlayers: STATE.maxPlayers,
-                players: STATE.players,
-                phase: foundRoomData.phase || 'LOBBY',
-                turnIndex: foundRoomData.turnIndex || 0,
-                targetPlayerIndex: foundRoomData.targetPlayerIndex || 0,
-                powerScore: foundRoomData.powerScore || 0,
-                guardScore: foundRoomData.guardScore || 0
+            document.getElementById('arrow-right').addEventListener('click', () => {
+                cameraAngle += 45;
+                updateCameraPosition();
             });
-        } else {
-            STATE.myIndex = STATE.players.findIndex(p => p.name === STATE.myName);
-        }
 
-        document.getElementById('menu-guest-id').classList.add('hidden');
-        document.getElementById('room-id-display').innerText = `ルームID: 【 ${pin} 】`;
-        document.getElementById('menu-lobby').classList.remove('hidden');
-
-        updateLobbyUI();
-        startPolling();
-        alert("ルームに接続しました！");
-    } catch(e) {
-        alert("接続に失敗しました。");
-        console.error(e);
-    }
-}
-
-async function updateRoomData(roomData) {
-    if (!STATE.myRoomBinId) return;
-    try {
-        await fetch(`https://api.jsonbin.io/v3/b/${STATE.myRoomBinId}`, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                "X-Master-Key": JSONBIN_API_KEY
-            },
-            body: JSON.stringify(roomData)
-        });
-    } catch(e) {
-        console.error("Update error", e);
-    }
-}
-
-function startPolling() {
-    if (pollingTimer) {
-        clearInterval(pollingTimer);
-        pollingTimer = null;
-    }
-    
-    pollingTimer = setInterval(async () => {
-        if (!STATE.myRoomBinId) return;
-        try {
-            const res = await fetch(`https://api.jsonbin.io/v3/b/${STATE.myRoomBinId}/latest?_=${Date.now()}`, {
-                headers: { "X-Master-Key": JSONBIN_API_KEY }
+            // 上下スライド（通常時のみ画面移動）
+            window.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    previousTouchY = e.touches[0].clientY;
+                }
             });
-            if (!res.ok) return;
 
-            const data = await res.json();
-            const room = data.record || data;
+            window.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                // アクションモード中は上下スライド禁止
+                if (isActionActive) return; 
 
-            if (room && room.players) {
-                STATE.players = room.players;
-                if (room.maxPlayers) STATE.maxPlayers = room.maxPlayers;
-                if (room.phase) STATE.phase = room.phase;
-                if (room.turnIndex !== undefined) STATE.turnIndex = room.turnIndex;
-                if (room.targetPlayerIndex !== undefined) STATE.targetPlayerIndex = room.targetPlayerIndex;
-                if (room.powerScore !== undefined) STATE.powerScore = room.powerScore;
-                if (room.guardScore !== undefined) STATE.guardScore = room.guardScore;
+                const currentY = e.touches[0].clientY;
+                const deltaY = currentY - previousTouchY;
+                previousTouchY = currentY;
 
-                if (STATE.mode === 'LOBBY') {
-                    updateLobbyUI();
-                    if (room.phase === 'SHOW_ORDER') {
-                        document.getElementById('menu-screen').classList.add('hidden');
-                        showOrderScreen();
-                    }
-                } else if (STATE.mode === 'ORDER_CONFIRM') {
-                    showOrderScreen();
-                } else if (STATE.mode === 'GAME') {
-                    updateGUI();
-                    if (room.phase === 'GUARD') {
-                        if (STATE.myIndex === STATE.targetPlayerIndex) {
-                            if (document.getElementById('power-gauge-overlay').classList.contains('hidden') && !STATE.gaugeRunning) {
-                                closePopup();
-                                openPowerGauge('GUARD');
-                            }
-                        } else {
-                            const defPlayer = STATE.players[STATE.targetPlayerIndex] ? STATE.players[STATE.targetPlayerIndex].name : "相手";
-                            showPleaseWaitPopup(`${defPlayer}の防御操作を待っています...`);
-                        }
-                    }
+                if (!isZoomed) {
+                    cameraHeight += deltaY * 0.05;
+                    cameraHeight = Math.max(2, Math.min(25, cameraHeight));
+                    updateCameraPosition();
+                }
+            });
+
+            window.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+
+            // ブロックタップ（Raycaster判定）
+            window.addEventListener('click', (e) => {
+                // UI上のクリックはスルー
+                if (e.target.closest('#gui-panel') || e.target.closest('#confirm-popup') || e.target.closest('#gauge-overlay') || e.target.closest('.arrow-btn')) {
+                    return;
                 }
 
-                if (room.phase === 'GAME' && STATE.mode !== 'GAME') {
-                    closePopup();
-                    startGame();
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const meshes = blocks.map(b => b.mesh);
+                const intersects = raycaster.intersectObjects(meshes);
+
+                if (intersects.length > 0) {
+                    const hitMesh = intersects[0].object;
+                    handleBlockTap(hitMesh);
                 }
+            });
+
+            // GUI: 拡大/縮小ボタン
+            document.getElementById('zoom-btn').addEventListener('click', () => {
+                isZoomed = !isZoomed;
+                document.getElementById('zoom-btn').textContent = isZoomed ? '縮小表示' : '拡大表示';
+                updateCameraPosition();
+            });
+
+            // パスボタン
+            document.getElementById('pass-btn').addEventListener('click', () => {
+                if (passRemaining > 0) {
+                    passRemaining--;
+                    document.getElementById('pass-count').textContent = passRemaining;
+                    showBanner('パスしました！');
+                } else {
+                    alert('パス回数が残っていません！');
+                }
+            });
+
+            // ポップアップボタン
+            document.getElementById('pop-no').addEventListener('click', () => {
+                confirmPopup.classList.add('hidden');
+                if (selectedBlock) {
+                    selectedBlock.material.color.setHex(selectedBlock.userData.originalColor);
+                    selectedBlock = null;
+                }
+            });
+
+            document.getElementById('pop-ok').addEventListener('click', () => {
+                confirmPopup.classList.add('hidden');
+                startActionModule();
+            });
+
+            // 打ち抜くボタン
+            document.getElementById('punch-btn').addEventListener('click', () => {
+                openGauge();
+            });
+
+            // ゲージストップボタン
+            document.getElementById('gauge-stop-btn').addEventListener('click', () => {
+                stopGauge();
+            });
+        }
+
+        // ブロックタップ時の処理
+        function handleBlockTap(mesh) {
+            if (selectedBlock && selectedBlock !== mesh) {
+                selectedBlock.material.color.setHex(selectedBlock.userData.originalColor);
             }
-        } catch(e) {
-            console.error("Polling error", e);
-        }
-    }, 2000);
-}
+            selectedBlock = mesh;
+            selectedBlock.material.color.setHex(0xff0000); // 赤く表示
 
-function updateLobbyUI() {
-    const list = document.getElementById('joined-players-list');
-    list.innerHTML = `<b>参加者一覧 (${STATE.players.length} / ${STATE.maxPlayers}人):</b><br>` + STATE.players.map(p => `・${p.name}`).join('<br>');
-    
-    const waitingMsg = document.getElementById('lobby-waiting-msg');
-    const startBtn = document.getElementById('btn-start-roulette');
-
-    if (STATE.players.length >= STATE.maxPlayers) {
-        waitingMsg.innerText = "プレイヤーが揃いました！";
-        if (STATE.isHost) {
-            startBtn.classList.remove('hidden');
-        } else {
-            waitingMsg.innerText += " ホストがルーレットを開始するのを待っています...";
-        }
-    } else {
-        waitingMsg.innerText = `接続待ち... (現在 ${STATE.players.length} / ${STATE.maxPlayers} 人)`;
-        if (STATE.isHost && STATE.players.length >= 1) {
-            startBtn.classList.remove('hidden');
-        } else {
-            startBtn.classList.add('hidden');
-        }
-    }
-}
-
-async function startOrderRoulette() {
-    STATE.players.sort(() => Math.random() - 0.5);
-    
-    await updateRoomData({
-        pin: STATE.roomPin,
-        maxPlayers: STATE.maxPlayers,
-        players: STATE.players,
-        phase: 'SHOW_ORDER',
-        turnIndex: 0,
-        targetPlayerIndex: 0,
-        powerScore: 0,
-        guardScore: 0
-    });
-
-    document.getElementById('menu-screen').classList.add('hidden');
-    showOrderScreen();
-}
-
-function showOrderScreen() {
-    STATE.mode = 'ORDER_CONFIRM';
-    document.getElementById('popup-title').innerText = "決定した順番一覧表";
-    
-    let html = `<div style="font-size:12px; margin-bottom:12px; color:#aaa;">ゲームの順番が決定しました：</div>`;
-    html += `<div style="display:flex; flex-direction:column; gap:6px; max-height:200px; overflow-y:auto; text-align:left;">`;
-    
-    STATE.players.forEach((p, i) => {
-        html += `<div style="background:#333; padding:8px 12px; border-radius:6px; font-size:14px;">
-            <b>${i + 1}番:</b> ${p.name}
-        </div>`;
-    });
-    html += `</div><br>`;
-
-    const btn = document.getElementById('popup-btn');
-
-    if (STATE.isHost) {
-        html += `<button class="menu-btn" style="background:#ff3333; width:100%;" onclick="executeGameStart()">ゲームスタート！</button>`;
-        btn.classList.add('hidden');
-    } else {
-        btn.classList.add('hidden');
-        html += `<div style="color:#ffcc00; font-size:13px; text-align:center;">ホストのゲーム開始をお待ちください...</div>`;
-    }
-
-    document.getElementById('popup-body').innerHTML = html;
-    document.getElementById('popup-overlay').classList.remove('hidden');
-}
-
-async function executeGameStart() {
-    await updateRoomData({
-        pin: STATE.roomPin,
-        maxPlayers: STATE.maxPlayers,
-        players: STATE.players,
-        phase: 'GAME',
-        turnIndex: 0,
-        targetPlayerIndex: 0,
-        powerScore: 0,
-        guardScore: 0
-    });
-
-    closePopup();
-    startGame();
-}
-
-function startGame() {
-    document.getElementById('menu-screen').classList.add('hidden');
-    document.getElementById('popup-overlay').classList.add('hidden');
-    STATE.mode = 'GAME';
-    buildJengaTower();
-    createPlayerHands();
-    updateGUI();
-    startTurn();
-}
-
-function startTurn() {
-    STATE.phase = 'SELECT';
-    
-    updateGUI();
-
-    const curP = STATE.players[STATE.turnIndex];
-    const banner = document.getElementById('turn-banner');
-    if (curP) {
-        banner.innerText = `${curP.name} の番です`;
-        banner.classList.remove('hidden');
-        setTimeout(() => {
-            banner.classList.add('hidden');
-        }, 1800);
-    }
-}
-
-async function nextTurn() {
-    document.getElementById('spit-overlay').classList.add('hidden');
-    if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
-    STATE.turnIndex = (STATE.turnIndex + 1) % STATE.players.length;
-    
-    if (STATE.isHost) {
-        await updateRoomData({
-            pin: STATE.roomPin,
-            maxPlayers: STATE.maxPlayers,
-            players: STATE.players,
-            phase: 'GAME',
-            turnIndex: STATE.turnIndex,
-            targetPlayerIndex: 0,
-            powerScore: 0,
-            guardScore: 0
-        });
-    }
-    
-    startTurn();
-}
-
-function updateGUI() {
-    const container = document.getElementById('gui-player-list');
-    container.innerHTML = '';
-    STATE.players.forEach((p, idx) => {
-        const card = document.createElement('div');
-        card.className = `player-card ${idx === STATE.turnIndex ? 'active' : ''}`;
-        card.innerHTML = `
-            <div><b>${p.name}</b></div>
-            <div>獲:${p.score}本</div>
-            <div class="hp-bar" style="width:${(p.hp/p.maxHp)*100}%"></div>
-        `;
-        container.appendChild(card);
-    });
-
-    const curP = STATE.players[STATE.turnIndex];
-    if (curP) {
-        ['ojama', 'sneeze', 'renzoku', 'pass', 'ganriki', 'rob'].forEach(item => {
-            const cnt = curP.items[item] || 0;
-            document.getElementById(`count-${item}`).innerText = cnt;
-            const btn = document.getElementById(`item-${item}`);
-            if (cnt > 0) btn.classList.add('active');
-            else btn.classList.remove('active');
-        });
-    }
-
-    updateCentralStatus();
-}
-
-function updateCentralStatus() {
-    const cs = document.getElementById('central-battle-status');
-    cs.classList.remove('hidden');
-    const curP = STATE.players[STATE.turnIndex] || { name: 'Player', hp: 100 };
-    const defaultTarget = (STATE.turnIndex + 1) % (STATE.players.length || 1);
-    const targetIdx = STATE.targetPlayerIndex !== undefined ? STATE.targetPlayerIndex : defaultTarget;
-    const targetP = STATE.players[targetIdx] || curP;
-    
-    cs.innerHTML = `
-        <span style="color:#ffcc00;">攻: ${curP.name} (HP:${curP.hp})</span>
-        <span>VS</span>
-        <span style="color:#00ffff;">防: ${targetP.name} (HP:${targetP.hp})</span>
-    `;
-}
-
-let tempSelectedTargetIndex = -1;
-
-function selectTargetPlayer() {
-    if (STATE.players.length === 1) {
-        STATE.targetPlayerIndex = 0;
-        startAngleSelectionH();
-        return;
-    }
-
-    STATE.phase = 'TARGET_SELECT';
-    tempSelectedTargetIndex = -1;
-    renderTargetSelectPopup();
-}
-
-function renderTargetSelectPopup() {
-    let html = `<div class="target-select-list" style="display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:200px; overflow-y:auto;">`;
-    STATE.players.forEach((p, i) => {
-        if (i !== STATE.myIndex) {
-            const isSelected = (tempSelectedTargetIndex === i);
-            html += `<div style="background:${isSelected ? '#554422' : '#333'}; border:2px solid ${isSelected ? '#ffcc00' : '#555'}; padding:10px; border-radius:6px; cursor:pointer; text-align:left;" onclick="window.tempSelectTarget(${i})">
-                <b>${p.name}</b> (HP: ${p.hp}) ${isSelected ? ' ◀ 選択中' : ''}
-            </div>`;
-        }
-    });
-    html += `</div>`;
-    html += `<button class="menu-btn" style="background:#ff3333; margin-top:15px; width:100%;" onclick="confirmTargetFinal()">決定</button>`;
-    
-    showPopup("攻撃対象選択", "攻撃するプレイヤーをタップして選択してください：<br>" + html, "", null);
-}
-
-window.tempSelectTarget = function(idx) {
-    tempSelectedTargetIndex = idx;
-    renderTargetSelectPopup();
-};
-
-window.confirmTargetFinal = async function() {
-    if (tempSelectedTargetIndex === -1 && STATE.players.length > 1) {
-        alert("攻撃対象を選択してください！");
-        return;
-    }
-    STATE.targetPlayerIndex = tempSelectedTargetIndex >= 0 ? tempSelectedTargetIndex : 0;
-    closePopup();
-
-    await updateRoomData({
-        pin: STATE.roomPin,
-        maxPlayers: STATE.maxPlayers,
-        players: STATE.players,
-        phase: 'ANGLE_H',
-        turnIndex: STATE.turnIndex,
-        targetPlayerIndex: STATE.targetPlayerIndex
-    });
-
-    startAngleSelectionH();
-};
-
-function startAngleSelectionH() {
-    STATE.phase = 'ANGLE_H';
-    openPowerGauge('ANGLE_H');
-}
-
-function startAngleSelectionV() {
-    STATE.phase = 'ANGLE_V';
-    openPowerGauge('ANGLE_V');
-}
-
-function showPleaseWaitPopup(text) {
-    let html = `<div class="blink-text" style="font-size:18px; color:#ffcc00; margin:15px 0;">⏳ ${text} ⏳</div>`;
-    showPopup("画面待機中", html, "", null);
-}
-
-function openPowerGauge(type) {
-    const overlay = document.getElementById('power-gauge-overlay');
-    const bg = document.querySelector('.gauge-bar-bg');
-    
-    if (type === 'ANGLE_V') {
-        bg.classList.add('vertical-gauge');
-    } else {
-        bg.classList.remove('vertical-gauge');
-    }
-
-    if (type === 'GUARD') {
-        if (STATE.myIndex !== STATE.targetPlayerIndex && STATE.players.length > 1) {
-            const defPlayer = STATE.players[STATE.targetPlayerIndex] ? STATE.players[STATE.targetPlayerIndex].name : "相手";
-            showPleaseWaitPopup(`${defPlayer}の防御操作を待っています...`);
-            return;
-        }
-    }
-
-    closePopup();
-    overlay.classList.remove('hidden');
-    
-    STATE.gaugeRunning = true;
-    STATE.gaugePos = 0;
-    STATE.gaugeSpeed = Math.random() * 3 + 2;
-
-    const curP = STATE.players[STATE.turnIndex] || { name: 'Player' };
-    const targetP = STATE.players[STATE.targetPlayerIndex] || curP;
-
-    if (type === 'ANGLE_H') {
-        document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】横軸角度決定`;
-    } else if (type === 'ANGLE_V') {
-        document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】縦軸角度決定`;
-    } else if (type === 'POWER') {
-        document.getElementById('gauge-owner-title').innerText = `【${curP.name}のターン】攻撃パワー決定`;
-    } else if (type === 'GUARD') {
-        document.getElementById('gauge-owner-title').innerText = `🛡️ 【${targetP.name}の防御ターン】防御ゲージをストップ！`;
-    }
-}
-
-async function stopGauge() {
-    if (!STATE.gaugeRunning) return;
-    
-    if (STATE.phase === 'GUARD' && STATE.myIndex !== STATE.targetPlayerIndex && STATE.players.length > 1) {
-        alert("あなたではなく、防御プレイヤーの操作番です！");
-        return;
-    }
-    if (STATE.phase !== 'GUARD' && STATE.turnIndex !== STATE.myIndex && STATE.players.length > 1) {
-        alert("あなたのターンではありません！");
-        return;
-    }
-
-    STATE.gaugeRunning = false;
-    const val = Math.floor(STATE.gaugePos);
-    document.getElementById('power-gauge-overlay').classList.add('hidden');
-
-    if (STATE.phase === 'ANGLE_H') {
-        STATE.angleHVal = val;
-        setTimeout(startAngleSelectionV, 400);
-    } else if (STATE.phase === 'ANGLE_V') {
-        STATE.angleVVal = val;
-        showTrajectoryPreview();
-    } else if (STATE.phase === 'POWER') {
-        STATE.powerScore = val;
-        STATE.phase = 'GUARD';
-        
-        await updateRoomData({
-            pin: STATE.roomPin,
-            maxPlayers: STATE.maxPlayers,
-            players: STATE.players,
-            phase: 'GUARD',
-            turnIndex: STATE.turnIndex,
-            targetPlayerIndex: STATE.targetPlayerIndex,
-            powerScore: STATE.powerScore
-        });
-
-        showPopup("パワー確定！", `<span class="power-impact-text">${val} POWER</span>`, "", null);
-        setTimeout(() => {
-            if (STATE.myIndex !== STATE.targetPlayerIndex && STATE.players.length > 1) {
-                const defPlayer = STATE.players[STATE.targetPlayerIndex] ? STATE.players[STATE.targetPlayerIndex].name : "相手";
-                showPleaseWaitPopup(`${defPlayer}の防御操作を待っています...`);
-            } else if (STATE.players.length === 1) {
-                openPowerGauge('GUARD');
-            }
-        }, 1200);
-    } else if (STATE.phase === 'GUARD') {
-        STATE.guardScore = val;
-        STATE.phase = 'RESULT';
-        
-        await updateRoomData({
-            pin: STATE.roomPin,
-            maxPlayers: STATE.maxPlayers,
-            players: STATE.players,
-            phase: 'RESULT',
-            turnIndex: STATE.turnIndex,
-            targetPlayerIndex: STATE.targetPlayerIndex,
-            powerScore: STATE.powerScore,
-            guardScore: STATE.guardScore
-        });
-
-        resolveBattleResult();
-    }
-}
-
-function showTrajectoryPreview() {
-    closePopup();
-    
-    STATE.isZoomed = false;
-    STATE.camAngle = 0;
-    updateCameraPosition();
-
-    document.getElementById('gui-container').classList.add('hidden');
-    document.getElementById('central-battle-status').classList.add('hidden');
-    document.getElementById('turn-banner').classList.add('hidden');
-    document.querySelectorAll('.cam-arrow').forEach(el => el.classList.add('hidden'));
-
-    if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
-
-    if (STATE.selectedBlock) {
-        const bPos = STATE.selectedBlock.mesh.position;
-        const startPos = new THREE.Vector3(bPos.x, bPos.y, bPos.z);
-        const endPos = new THREE.Vector3(
-            bPos.x + (STATE.angleHVal - 50) * 0.1,
-            bPos.y + (STATE.angleVVal - 50) * 0.1,
-            bPos.z - 10
-        );
-
-        const distance = startPos.distanceTo(endPos);
-        const cylinderGeo = new THREE.CylinderGeometry(0.2, 0.2, distance, 16);
-        const cylinderMat = new THREE.MeshStandardMaterial({ 
-            color: 0xff0000, 
-            emissive: 0xff0000, 
-            roughness: 0.2, 
-            transparent: true, 
-            opacity: 0.85 
-        });
-        
-        trajectoryLine = new THREE.Mesh(cylinderGeo, cylinderMat);
-        trajectoryLine.position.copy(startPos).add(endPos).multiplyScalar(0.5);
-        trajectoryLine.quaternion.setFromUnitVectors(
-            new THREE.Vector3(0, 1, 0),
-            new THREE.Vector3().subVectors(endPos, startPos).normalize()
-        );
-        scene.add(trajectoryLine);
-    }
-
-    let elapsedRot = 0;
-    let stabProgress = 0;
-    const rotInterval = setInterval(() => {
-        elapsedRot += 0.05;
-        STATE.camAngle += 0.05;
-        updateCameraPosition();
-
-        if (trajectoryLine) {
-            stabProgress += 0.25;
-            const scaleFactor = 1 + Math.sin(stabProgress) * 0.25;
-            trajectoryLine.scale.set(1, scaleFactor, 1);
+            // 確認ポップアップ表示
+            confirmPopup.classList.remove('hidden');
         }
 
-        if (elapsedRot >= Math.PI * 2) {
-            clearInterval(rotInterval);
-            STATE.camAngle = 0;
+        // アクションモードへ移行
+        function startActionModule() {
+            isActionActive = true;
+            isZoomed = true; // 自動で拡大画面モード
+            document.getElementById('zoom-btn').textContent = '縮小表示';
             updateCameraPosition();
+
+            // 打ち抜くボタン点灯
+            document.getElementById('punch-btn').classList.add('active');
+            showBanner('【獲得アクション】棒を押し出すか打ち抜け！');
+        }
+
+        // 威力ゲージ起動
+        function openGauge() {
+            isAnimatingGauge = true;
+            gaugePos = 0;
+            gaugeDir = 1;
+            gaugeOverlay.style.display = 'flex';
+            requestAnimationFrame(updateGaugeAnimation);
+        }
+
+        function updateGaugeAnimation() {
+            if (!isAnimatingGauge) return;
+            gaugePos += gaugeDir * 3;
+            if (gaugePos >= 90 || gaugePos <= 0) {
+                gaugeDir *= -1;
+            }
+            document.getElementById('gauge-cursor').style.left = gaugePos + '%';
+            requestAnimationFrame(updateGaugeAnimation);
+        }
+
+        // ゲージストップ＆打ち抜き演出
+        function stopGauge() {
+            isAnimatingGauge = false;
+            gaugeOverlay.style.display = 'none';
+
+            let powerScore = Math.floor(Math.abs(gaugePos - 45) * 2 + 10); // 威力数値化
             
-            document.getElementById('gui-container').classList.remove('hidden');
-            document.getElementById('central-battle-status').classList.remove('hidden');
-            document.querySelectorAll('.cam-arrow').forEach(el => el.classList.remove('hidden'));
-            
-            showPopup("軌道確認完了", "全体図の確認が終わりました。", "攻撃パワー決定へ", () => {
-                if (trajectoryLine) { scene.remove(trajectoryLine); trajectoryLine = null; }
-                STATE.phase = 'POWER';
-                openPowerGauge('POWER');
-            });
+            // 画面揺れ演出
+            document.body.style.transform = 'translate(5px, 5px)';
+            setTimeout(() => { document.body.style.transform = 'translate(-5px, -3px)'; }, 50);
+            setTimeout(() => { document.body.style.transform = 'translate(0, 0)'; }, 100);
+
+            showBanner(`威力: ${powerScore} ! 抜き取り成功！`);
+
+            // 選択されたブロックを物理ワールドから外して飛ばす / 獲得処理
+            if (selectedBlock) {
+                const targetObj = blocks.find(b => b.mesh === selectedBlock);
+                if (targetObj) {
+                    // 物理的に勢いをつけて弾き飛ばす
+                    targetObj.body.velocity.set(0, 5, 10);
+                    targetObj.body.angularVelocity.set(5, 5, 0);
+                }
+                score++;
+                document.getElementById('score-count').textContent = score;
+            }
+
+            // 状態リセット
+            setTimeout(() => {
+                isActionActive = false;
+                document.getElementById('punch-btn').classList.remove('active');
+                selectedBlock = null;
+            }, 1500);
         }
-    }, 30);
-}
 
-function resolveBattleResult() {
-    closePopup();
-    const diff = STATE.powerScore - STATE.guardScore;
-    const turnP = STATE.players[STATE.turnIndex];
-    const targetP = STATE.players[STATE.targetPlayerIndex] || turnP;
-
-    let msg = `<div class="power-impact-text">${STATE.powerScore} POWER</div>`;
-    msg += `<div class="guard-impact-text">VS ${STATE.guardScore} GUARD</div><br>`;
-
-    if (diff <= 0) {
-        msg += `<b style="color:#00ff00;">ガード成功！ダメージなし</b>`;
-    } else {
-        const damage = Math.ceil(diff / 10);
-        targetP.hp = Math.max(0, targetP.hp - damage);
-        msg += `<b style="color:#ff3333; font-size:20px;">${targetP.name} に ${damage} の大ダメージ！</b>`;
-        
-        document.getElementById('app-container').classList.add('shake');
-        document.getElementById('app-container').classList.add('battle-flash');
-        setTimeout(() => {
-            document.getElementById('app-container').classList.remove('shake');
-            document.getElementById('app-container').classList.remove('battle-flash');
-        }, 600);
-    }
-
-    activatePhysics();
-
-    if (STATE.selectedBlock) {
-        const pushForce = (STATE.powerScore / 50) * 10;
-        const dirZ = STATE.selectedBlock.isRotated ? 0 : -pushForce;
-        const dirX = STATE.selectedBlock.isRotated ? -pushForce : 0;
-
-        STATE.selectedBlock.body.applyImpulse(
-            new CANNON.Vec3(dirX, 2.0, dirZ),
-            STATE.selectedBlock.body.position
-        );
-        turnP.score++;
-    }
-
-    showPopup("バトル結果発表", msg, "演出確認・次へ", () => {
-        if (targetP.hp <= 0 && STATE.players.length > 1) {
-            alert(`${targetP.name} 脱落！`);
+        // バナーメッセージ表示
+        function showBanner(text) {
+            messageBanner.textContent = text;
+            messageBanner.style.opacity = '1';
+            setTimeout(() => {
+                messageBanner.style.opacity = '0';
+            }, 2500);
         }
-        nextTurn();
-    });
-}
 
-function useItem(type) {
-    const p = STATE.players[STATE.turnIndex];
-    if (!p || !p.items[type] || p.items[type] <= 0) return;
+        // --- メインループ ---
+        const clock = new THREE.Clock();
 
-    p.items[type]--;
-    updateGUI();
+        function animate() {
+            requestAnimationFrame(animate);
 
-    document.getElementById('app-container').classList.add('shake');
-    setTimeout(() => document.getElementById('app-container').classList.remove('shake'), 400);
+            const delta = clock.getDelta();
+            if (world) {
+                world.step(1 / 60, delta, 3);
 
-    if (type === 'pass') {
-        showPopup("⚡ 秘技発動 ⚡", "【パス】を発動！華麗にターンをスキップします！", "OK", () => nextTurn());
-    } else if (type === 'sneeze') {
-        document.getElementById('spit-overlay').classList.remove('hidden');
-        showPopup("💨 くしゃみ炸裂 💨", "強烈なくしゃみで対戦相手の画面が汚れた！！", "OK");
-    } else if (type === 'ojama') {
-        showPopup("🌀 お邪魔発動 🌀", "相手の視界とバランスを妨害するお邪魔ブロックを投下！", "OK");
-    } else if (type === 'renzoku') {
-        showPopup("🔥 連続ターン 🔥", "驚異の集中力！もう一度自分のターンを実行可能！", "OK");
-    } else if (type === 'ganriki') {
-        showPopup("👁️ 眼力発動 👁️", "透き通る眼力で次のブロックの弱点を見抜いた！", "OK");
-    } else if (type === 'rob') {
-        showPopup("💰 強奪発導 💰", "相手のアイテムを華麗にスリ奪った！", "OK");
-    } else {
-        showPopup("✨ アイテム発動 ✨", `【${type.toUpperCase()}】を発動しました！`, "OK");
-    }
-}
+                // Three.js と Cannon.js の位置・姿勢同期
+                for (let i = 0; i < blocks.length; i++) {
+                    blocks[i].mesh.position.copy(blocks[i].body.position);
+                    blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
+                }
+            }
 
-function checkCollapse() {
-    for (let b of blocks) {
-        if (b.body.position.y < 0 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4) {
-            triggerGameOver();
-            break;
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
         }
-    }
-}
 
-function triggerGameOver() {
-    STATE.mode = 'OVER';
-
-    const rankings = [...STATE.players].sort((a, b) => (b.score + b.hp) - (a.score + a.hp));
-    const winner = rankings[0];
-
-    let html = `<h2 style="color:#ffcc00;">👑 ${winner.name} WIN! 👑</h2><br>`;
-    html += rankings.map((p, i) => `${i + 1}位: 👑 ${p.name} (獲得:${p.score} / HP:${p.hp})`).join('<br>');
-
-    showPopup("倒壊！ゲーム終了", html, "リトライ / 終了", () => {
-        location.reload();
-    });
-}
-
-function showPopup(title, body, btnText = "OK", callback = null) {
-    const overlay = document.getElementById('popup-overlay');
-    document.getElementById('popup-title').innerText = title;
-    document.getElementById('popup-body').innerHTML = body;
-    const btn = document.getElementById('popup-btn');
-    if (btnText === "") {
-        btn.classList.add('hidden');
-    } else {
-        btn.classList.remove('hidden');
-        btn.innerText = btnText;
-        btn.onclick = () => {
-            overlay.classList.add('hidden');
-            if (callback) callback();
-        };
-    }
-    overlay.classList.remove('hidden');
-}
-
-function closePopup() {
-    document.getElementById('popup-overlay').classList.add('hidden');
-}
-</script>
+        // ウィンドウリサイズ対応
+        window.addEventListener('resize', () => {
+            if (camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+    </script>
 </body>
 </html>
