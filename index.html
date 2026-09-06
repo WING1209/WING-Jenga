@@ -176,6 +176,47 @@
             display: block;
         }
 
+        /* ツンツンパワーパネル（下部） */
+        #tsuntsun-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 20px;
+            display: none;
+            flex-direction: row;
+            gap: 8px;
+            z-index: 15;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+        #tsuntsun-panel.active {
+            display: flex;
+        }
+        .tsun-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            transition: 0.1s;
+        }
+        .tsun-btn:active {
+            transform: scale(0.92);
+            background: #f57c00;
+        }
+        .tsun-btn:disabled {
+            background: #555;
+            color: #888;
+            cursor: not-allowed;
+        }
+
         /* 確認ポップアップ */
         #confirm-popup {
             position: absolute;
@@ -243,6 +284,7 @@
             border-radius: 20px;
             position: relative;
             overflow: hidden;
+...
             margin: 20px 0;
         }
         .gauge-cursor {
@@ -317,6 +359,16 @@
             <button class="gui-btn" id="finish-extract-btn">抜き終了</button>
         </div>
 
+        <!-- ツンツンパワー選択パネル（下部） -->
+        <div id="tsuntsun-panel">
+            <span style="color:white; font-weight:bold; align-self:center; font-size:0.85rem;">ツン度:</span>
+            <button class="tsun-btn" onclick="doTsunTsun(10)">10</button>
+            <button class="tsun-btn" onclick="doTsunTsun(20)">20</button>
+            <button class="tsun-btn" onclick="doTsunTsun(30)">30</button>
+            <button class="tsun-btn" onclick="doTsunTsun(40)">40</button>
+            <button class="tsun-btn" onclick="doTsunTsun(50)">50</button>
+        </div>
+
         <div id="message-banner"></div>
     </div>
 
@@ -350,21 +402,18 @@
         let timerSeconds = 0;
         let timerInterval = null;
 
-        // ドラッグ・アクション用
+        // ドラッグ用
         let isDraggingBlock = false;
         let previousPointerX = 0;
-        let previousPointerY = 0;
 
-        // 花火・パーティクル用配列
+        // パーティクル・演出用
         let fireworks = [];
         let convergingParticles = [];
         let isConverging = false;
-        let convergenceTimer = 0;
         let pendingPunchPower = 0;
-
-        // 画面揺れ用
         let shakeDuration = 0;
         let shakeIntensity = 0;
+        let isTsunLocked = false; // 連続タップ防止用ロック
 
         const titleScreen = document.getElementById('title-screen');
         const menuScreen = document.getElementById('menu-screen');
@@ -466,11 +515,12 @@
                     const mesh = new THREE.Mesh(geo, mat);
                     mesh.castShadow = true;
                     mesh.receiveShadow = true;
-                    mesh.userData = { id: blocks.length, originalColor: 0xDEB887, floor: i, isEdge: (j === 0 || j === 2) };
+                    mesh.userData = { id: blocks.length, originalColor: 0xDEB887, floor: i };
                     mesh.position.set(x, y, z);
                     towerGroup.add(mesh);
 
-                    const body = new CANNON.Body({ mass: 0 });
+                    // 質量を少し軽めに設定してツンツンで動かしやすく調整
+                    const body = new CANNON.Body({ mass: 0.3 });
                     body.addShape(blockShape);
                     body.position.set(x, y, z);
                     body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), rotY);
@@ -510,7 +560,6 @@
                 updateCameraPosition();
             });
 
-            // タッチ開始
             window.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 1) {
                     if (gameState === 'view') {
@@ -519,12 +568,10 @@
                     } else if (gameState === 'action') {
                         isDraggingBlock = true;
                         previousPointerX = e.touches[0].clientX;
-                        previousPointerY = e.touches[0].clientY;
                     }
                 }
             });
 
-            // タッチ移動
             window.addEventListener('touchmove', (e) => {
                 if (isViewDragging && gameState === 'view') {
                     const currentY = e.touches[0].clientY;
@@ -537,7 +584,6 @@
                     const currentX = e.touches[0].clientX;
                     const deltaX = currentX - previousPointerX;
                     previousPointerX = currentX;
-
                     handleBlockDragAction(deltaX);
                 }
             });
@@ -547,9 +593,8 @@
                 isDraggingBlock = false;
             });
 
-            // マウス操作（PCテスト用）
             window.addEventListener('mousedown', (e) => {
-                if (e.target.closest('#gui-panel') || e.target.closest('#confirm-popup') || e.target.closest('#gauge-overlay') || e.target.closest('.arrow-btn')) return;
+                if (e.target.closest('#gui-panel') || e.target.closest('#confirm-popup') || e.target.closest('#gauge-overlay') || e.target.closest('.arrow-btn') || e.target.closest('#tsuntsun-panel')) return;
                 if (gameState === 'action') {
                     isDraggingBlock = true;
                     previousPointerX = e.clientX;
@@ -560,7 +605,6 @@
                 if (isDraggingBlock && gameState === 'action' && selectedBlock) {
                     const deltaX = e.clientX - previousPointerX;
                     previousPointerX = e.clientX;
-
                     handleBlockDragAction(deltaX);
                 }
             });
@@ -569,9 +613,8 @@
                 isDraggingBlock = false;
             });
 
-            // クリック＆タップ選択・ツンツンアクション①
             window.addEventListener('click', (e) => {
-                if (e.target.closest('#gui-panel') || e.target.closest('#confirm-popup') || e.target.closest('#gauge-overlay') || e.target.closest('.arrow-btn')) return;
+                if (e.target.closest('#gui-panel') || e.target.closest('#confirm-popup') || e.target.closest('#gauge-overlay') || e.target.closest('.arrow-btn') || e.target.closest('#tsuntsun-panel')) return;
 
                 if (gameState === 'view') {
                     mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -581,25 +624,6 @@
 
                     if (intersects.length > 0) {
                         selectBlockForConfirmation(intersects[0].object);
-                    }
-                } else if (gameState === 'action') {
-                    // ① 対象の棒をツンツンして押し出すアクション
-                    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-                    raycaster.setFromCamera(mouse, camera);
-                    const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh));
-
-                    if (intersects.length > 0 && intersects[0].object === selectedBlock) {
-                        const targetObj = blocks.find(b => b.mesh === selectedBlock);
-                        if (targetObj) {
-                            // 物理エンジン有効状態で反対側に押し出す（ツンツン）
-                            const angle = targetObj.body.quaternion.toAxisAngle();
-                            const forceDir = new CANNON.Vec3(0, 0, 4.0);
-                            // 向きに応じた前方方向へインパルス付与
-                            targetObj.body.applyLocalImpulse(forceDir, new CANNON.Vec3(0,0,0));
-                            extractedBlockData = targetObj;
-                            showBanner('ツン！リアルタイムで押し出しています！');
-                        }
                     }
                 } else if (gameState === 'place') {
                     placeExtractedBlock();
@@ -635,7 +659,6 @@
                 startActionPhase();
             });
 
-            // ④ 打ち抜くボタン
             document.getElementById('punch-btn').addEventListener('click', () => {
                 if (gameState === 'action') openGauge();
             });
@@ -644,7 +667,6 @@
                 stopGauge();
             });
 
-            // 抜き終了ボタン
             document.getElementById('finish-extract-btn').addEventListener('click', () => {
                 if (gameState === 'action') {
                     startSuccessCheckTimer();
@@ -652,20 +674,62 @@
             });
         }
 
-        // ② & ③ ドラッグによるスライド・横視点からの引き抜きアクション処理
+        // --- ① ツンツンアクション（パワー10〜50指定） ---
+        function doTsunTsun(power) {
+            if (gameState !== 'action' || isTsunLocked || !selectedBlock) return;
+
+            const targetObj = blocks.find(b => b.mesh === selectedBlock);
+            if (!targetObj) return;
+
+            isTsunLocked = true; // 連続タップ防止ロック
+            extractedBlockData = targetObj;
+
+            // 選択された棒の向き（ローカル前方）に沿ってパワーに応じたインパルスを加える
+            // 回転クォータニオンから前方向ベクトルを算出
+            const localVector = new CANNON.Vec3(0, 0, power * 0.05);
+            const worldVector = targetObj.body.quaternion.vmult(localVector);
+            
+            targetObj.body.applyImpulse(worldVector, targetObj.body.position);
+
+            showBanner(`ツン！ (威力: ${power}) 押し出し中...`);
+
+            // 0.8秒間リアルタイム物理演算を確認＆バランスチェック（その間連打ロック）
+            let subTimer = 0.8;
+            let checkInterval = setInterval(() => {
+                subTimer -= 0.2;
+                // 崩壊チェック
+                let isCollapsed = false;
+                blocks.forEach(b => {
+                    if (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4) {
+                        isCollapsed = true;
+                    }
+                });
+
+                if (isCollapsed) {
+                    clearInterval(checkInterval);
+                    gameState = 'gameover';
+                    showBanner('GAME OVER: ツンツンしすぎてタワーが崩れました！');
+                }
+
+                if (subTimer <= 0) {
+                    clearInterval(checkInterval);
+                    if (gameState === 'action') {
+                        isTsunLocked = false;
+                        showBanner('ツンツン完了。次のアクションをどうぞ！');
+                    }
+                }
+            }, 200);
+        }
+
         function handleBlockDragAction(deltaX) {
             const targetObj = blocks.find(b => b.mesh === selectedBlock);
             if (!targetObj) return;
 
             extractedBlockData = targetObj;
-
-            // カメラの向きとブロックの配置角度に合わせたリアルタイム移動量計算
             const rad = cameraAngle * Math.PI / 180;
-            // 画面上の左右移動量をワールド座標の移動に変換
             const moveX = deltaX * Math.cos(rad) * 0.03;
             const moveZ = -deltaX * Math.sin(rad) * 0.03;
 
-            // 物理エンジンの位置をリアルタイム更新
             targetObj.body.position.x += moveX;
             targetObj.body.position.z += moveZ;
 
@@ -681,7 +745,6 @@
             confirmPopup.classList.remove('hidden');
         }
 
-        // --- アクションモード開始 ---
         function startActionPhase() {
             gameState = 'action';
             isZoomed = true;
@@ -689,18 +752,18 @@
             lookAtY = selectedBlock.position.y;
             updateCameraPosition();
 
-            // 物理エンジン有効化（リアルタイム演算）
+            // 物理演算有効化（質量0.3で軽く動く）
             blocks.forEach(b => {
-                b.body.mass = 1.0;
+                b.body.mass = 0.3;
                 b.body.updateMassProperties();
                 b.isDynamic = true;
             });
 
-            // 打ち抜くボタンと抜き終了ボタンを点灯
             document.getElementById('punch-btn').classList.add('active');
             document.getElementById('finish-extract-btn').classList.add('active');
+            document.getElementById('tsuntsun-panel').classList.add('active');
             
-            showBanner('【アクション開始】ツンツン・ドラッグ・横視点・打ち抜き！');
+            showBanner('【アクション開始】下部のパワーを選んでツンツン、またはドラッグ！');
         }
 
         let isAnimatingGauge = false;
@@ -723,28 +786,20 @@
             requestAnimationFrame(updateGaugeAnimation);
         }
 
-        // 威力ゲージストップ時の演出（画面揺れ ＋ 数値化表示 ＋ 光の収束パーティクル）
         function stopGauge() {
             isAnimatingGauge = false;
             gaugeOverlay.style.display = 'none';
 
             pendingPunchPower = Math.floor(Math.abs(gaugePos - 45) * 2 + 15);
-
-            // 1. 画面を大きく揺らす
-            shakeDuration = 0.5; // 0.5秒間
+            shakeDuration = 0.5;
             shakeIntensity = 0.4;
 
-            // 2. 数値化された威力を大きく表示
             showBanner(`💥 威力: ${pendingPunchPower} 爆発発動！！ 💥`);
-
-            // 3. 選択された棒の中央へ光の点が集中するパーティクル演出
             startLightConvergenceEffect();
         }
 
-        // 光の点が選択された棒の中央へ集中するパーティクル演出
         function startLightConvergenceEffect() {
             isConverging = true;
-            convergenceTimer = 0;
             convergingParticles = [];
 
             const target = blocks.find(b => b.mesh === selectedBlock);
@@ -755,10 +810,9 @@
 
             for (let i = 0; i < count; i++) {
                 const geo = new THREE.SphereGeometry(0.08, 6, 6);
-                const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff }); // 青白い光
+                const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
                 const pMesh = new THREE.Mesh(geo, mat);
 
-                // 周囲のランダムな位置から開始
                 const radius = 3.0 + Math.random() * 2.0;
                 const theta = Math.random() * Math.PI * 2;
                 const phi = Math.random() * Math.PI;
@@ -782,7 +836,6 @@
             }
         }
 
-        // パーティクル収束完了後の実際の打ち抜き物理実行
         function executePunch() {
             const target = blocks.find(b => b.mesh === selectedBlock);
             if (target) {
@@ -793,11 +846,11 @@
             startSuccessCheckTimer();
         }
 
-        // --- 3秒間の成功判定タイマー ---
         function startSuccessCheckTimer() {
             gameState = 'check';
             document.getElementById('punch-btn').classList.remove('active');
             document.getElementById('finish-extract-btn').classList.remove('active');
+            document.getElementById('tsuntsun-panel').classList.remove('active');
             timerSeconds = 3;
             showBanner('バランス確認中... (3秒)');
 
@@ -828,7 +881,6 @@
                 score++;
                 document.getElementById('score-count').textContent = score;
                 
-                // 成功！！表示 ＆ 花火パーティクル演出
                 showBanner('成功！！ 🎉 次のターンへ');
                 createFireworks();
 
@@ -848,7 +900,6 @@
             });
         }
 
-        // --- 花火クラッカー演出パーティクル ---
         function createFireworks() {
             const particleCount = 60;
             const colors = [0xff4081, 0xffeb3b, 0x00e676, 0x00bcd4, 0xff9800];
@@ -904,7 +955,7 @@
             extractedBlockData.mesh.material.color.setHex(extractedBlockData.mesh.userData.originalColor);
 
             blocks.forEach(b => {
-                b.body.mass = 1.0;
+                b.body.mass = 0.3;
                 b.body.updateMassProperties();
                 b.isDynamic = true;
             });
@@ -967,14 +1018,12 @@
                 }
             }
 
-            // 画面揺れ演出の更新
             if (shakeDuration > 0) {
                 shakeDuration -= delta;
                 camera.position.x += (Math.random() - 0.5) * shakeIntensity;
                 camera.position.y += (Math.random() - 0.5) * shakeIntensity;
             }
 
-            // 光の収束パーティクルのアニメーション更新
             if (isConverging) {
                 let allDone = true;
                 for (let i = 0; i < convergingParticles.length; i++) {
@@ -987,15 +1036,12 @@
                 }
                 if (allDone) {
                     isConverging = false;
-                    // パーティクル削除
                     convergingParticles.forEach(p => scene.remove(p.mesh));
                     convergingParticles = [];
-                    // 実際に弾き飛ばす
                     executePunch();
                 }
             }
 
-            // 花火パーティクルのアニメーション更新
             for (let i = fireworks.length - 1; i >= 0; i--) {
                 let fw = fireworks[i];
                 fw.mesh.position.x += fw.vx;
