@@ -20,7 +20,8 @@
             height: 100%;
             overflow: hidden;
             font-family: 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(to bottom, #4a90e2, #87ceeb);
+            /* 美しい青空グラデーション */
+            background: linear-gradient(to bottom, #1e90ff, #87ceeb);
         }
         
         .screen {
@@ -41,7 +42,7 @@
 
         /* タイトル画面 */
         #title-screen {
-            background: linear-gradient(to bottom, #1e3c72, #2a5298);
+            background: linear-gradient(to bottom, #005c8a, #1e90ff);
             color: white;
             text-align: center;
         }
@@ -71,7 +72,7 @@
 
         /* メニュー画面 */
         #menu-screen {
-            background: rgba(0,0,0,0.4);
+            background: rgba(0,0,0,0.3);
             backdrop-filter: blur(5px);
         }
         .menu-btn {
@@ -176,7 +177,7 @@
             display: block;
         }
 
-        /* ツンツンパワーパネル（下部） */
+        /* ツンツンパワー選択パネル（下部） */
         #tsuntsun-panel {
             position: absolute;
             bottom: 20px;
@@ -210,11 +211,6 @@
         .tsun-btn:active {
             transform: scale(0.92);
             background: #f57c00;
-        }
-        .tsun-btn:disabled {
-            background: #555;
-            color: #888;
-            cursor: not-allowed;
         }
 
         /* 確認ポップアップ */
@@ -284,7 +280,6 @@
             border-radius: 20px;
             position: relative;
             overflow: hidden;
-...
             margin: 20px 0;
         }
         .gauge-cursor {
@@ -355,7 +350,7 @@
             <div class="gui-row">パス残: <span id="pass-count">2</span> 回</div>
             <button class="gui-btn" id="pass-btn">パスする</button>
             <button class="gui-btn" id="zoom-btn">拡大表示</button>
-            <button class="gui-btn" id="punch-btn">打ち抜く！</button>
+            <button class="gui-btn" id="punch-btn">何度でも打ち抜く！</button>
             <button class="gui-btn" id="finish-extract-btn">抜き終了</button>
         </div>
 
@@ -413,7 +408,7 @@
         let pendingPunchPower = 0;
         let shakeDuration = 0;
         let shakeIntensity = 0;
-        let isTsunLocked = false; // 連続タップ防止用ロック
+        let isTsunLocked = false;
 
         const titleScreen = document.getElementById('title-screen');
         const menuScreen = document.getElementById('menu-screen');
@@ -447,7 +442,6 @@
         let cameraAngle = 0;
         let lookAtY = 6;
         let cameraHeightOffset = 9.0;
-        let cameraRadius = 20.0;
         let isViewDragging = false;
         let previousTouchY = 0;
 
@@ -455,7 +449,8 @@
             const container = document.getElementById('canvas-container');
 
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
+            scene.background = new THREE.Color(0x87ceeb); // 青空背景
+            scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
 
             camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
             updateCameraPosition();
@@ -468,6 +463,7 @@
 
             world = new CANNON.World();
             world.gravity.set(0, -9.82, 0);
+            world.solver.iterations = 30; // 物理演算の精度を高めて安定化
 
             scene.add(new THREE.AmbientLight(0xffffff, 0.7));
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -519,8 +515,8 @@
                     mesh.position.set(x, y, z);
                     towerGroup.add(mesh);
 
-                    // 質量を少し軽めに設定してツンツンで動かしやすく調整
-                    const body = new CANNON.Body({ mass: 0.3 });
+                    // 最初は何もしない状態で確実に自立するよう mass = 0 (完全固定)
+                    const body = new CANNON.Body({ mass: 0 });
                     body.addShape(blockShape);
                     body.position.set(x, y, z);
                     body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), rotY);
@@ -659,6 +655,7 @@
                 startActionPhase();
             });
 
+            // 何度でも可能な「打ち抜く！」ボタン
             document.getElementById('punch-btn').addEventListener('click', () => {
                 if (gameState === 'action') openGauge();
             });
@@ -684,38 +681,25 @@
             isTsunLocked = true; // 連続タップ防止ロック
             extractedBlockData = targetObj;
 
-            // 選択された棒の向き（ローカル前方）に沿ってパワーに応じたインパルスを加える
-            // 回転クォータニオンから前方向ベクトルを算出
             const localVector = new CANNON.Vec3(0, 0, power * 0.05);
             const worldVector = targetObj.body.quaternion.vmult(localVector);
             
             targetObj.body.applyImpulse(worldVector, targetObj.body.position);
-
             showBanner(`ツン！ (威力: ${power}) 押し出し中...`);
 
-            // 0.8秒間リアルタイム物理演算を確認＆バランスチェック（その間連打ロック）
-            let subTimer = 0.8;
+            let subTimer = 0.6;
             let checkInterval = setInterval(() => {
                 subTimer -= 0.2;
-                // 崩壊チェック
-                let isCollapsed = false;
-                blocks.forEach(b => {
-                    if (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4) {
-                        isCollapsed = true;
-                    }
-                });
-
-                if (isCollapsed) {
+                if (checkTowerCollapse()) {
                     clearInterval(checkInterval);
-                    gameState = 'gameover';
-                    showBanner('GAME OVER: ツンツンしすぎてタワーが崩れました！');
+                    return;
                 }
 
                 if (subTimer <= 0) {
                     clearInterval(checkInterval);
                     if (gameState === 'action') {
                         isTsunLocked = false;
-                        showBanner('ツンツン完了。次のアクションをどうぞ！');
+                        showBanner('ツンツン完了。次のアクションへどうぞ！');
                     }
                 }
             }, 200);
@@ -733,6 +717,7 @@
             targetObj.body.position.x += moveX;
             targetObj.body.position.z += moveZ;
 
+            checkTowerCollapse();
             showBanner('ドラッグで引き抜き中！（リアルタイム物理演算）');
         }
 
@@ -752,9 +737,13 @@
             lookAtY = selectedBlock.position.y;
             updateCameraPosition();
 
-            // 物理演算有効化（質量0.3で軽く動く）
+            // 選択された棒の重みをしっかり持たせる（mass = 1.2）
             blocks.forEach(b => {
-                b.body.mass = 0.3;
+                if (b.mesh === selectedBlock) {
+                    b.body.mass = 1.2;
+                } else {
+                    b.body.mass = 0; // 他は完全固定してタワーの安定性を維持
+                }
                 b.body.updateMassProperties();
                 b.isDynamic = true;
             });
@@ -763,7 +752,7 @@
             document.getElementById('finish-extract-btn').classList.add('active');
             document.getElementById('tsuntsun-panel').classList.add('active');
             
-            showBanner('【アクション開始】下部のパワーを選んでツンツン、またはドラッグ！');
+            showBanner('【アクション】ツンツン・何度でも打ち抜き・ドラッグ！');
         }
 
         let isAnimatingGauge = false;
@@ -846,6 +835,26 @@
             startSuccessCheckTimer();
         }
 
+        // 倒れた時点で即ゲームオーバーにする常時判定
+        function checkTowerCollapse() {
+            let isCollapsed = false;
+            blocks.forEach(b => {
+                if (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 4.5 || Math.abs(b.body.position.z) > 4.5) {
+                    isCollapsed = true;
+                }
+            });
+
+            if (isCollapsed && gameState !== 'gameover' && gameState !== 'view') {
+                gameState = 'gameover';
+                showBanner('GAME OVER: タワーが倒れました！');
+                document.getElementById('punch-btn').classList.remove('active');
+                document.getElementById('finish-extract-btn').classList.remove('active');
+                document.getElementById('tsuntsun-panel').classList.remove('active');
+                return true;
+            }
+            return false;
+        }
+
         function startSuccessCheckTimer() {
             gameState = 'check';
             document.getElementById('punch-btn').classList.remove('active');
@@ -856,38 +865,31 @@
 
             timerInterval = setInterval(() => {
                 timerSeconds--;
+                if (checkTowerCollapse()) {
+                    clearInterval(timerInterval);
+                    return;
+                }
+
                 if (timerSeconds > 0) {
                     showBanner(`バランス確認中... (${timerSeconds}秒)`);
                 } else {
                     clearInterval(timerInterval);
-                    checkTowerStability();
+                    successTurn();
                 }
             }, 1000);
         }
 
-        function checkTowerStability() {
-            let isCollapsed = false;
-            blocks.forEach(b => {
-                if (b !== extractedBlockData && (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4)) {
-                    isCollapsed = true;
-                }
-            });
+        function successTurn() {
+            freezeTower();
+            score++;
+            document.getElementById('score-count').textContent = score;
+            
+            showBanner('成功！！ 🎉 次のターンへ');
+            createFireworks();
 
-            if (isCollapsed) {
-                gameState = 'gameover';
-                showBanner('GAME OVER: タワーが崩れました！');
-            } else {
-                freezeTower();
-                score++;
-                document.getElementById('score-count').textContent = score;
-                
-                showBanner('成功！！ 🎉 次のターンへ');
-                createFireworks();
-
-                setTimeout(() => {
-                    startPlacementPhase();
-                }, 2500);
-            }
+            setTimeout(() => {
+                startPlacementPhase();
+            }, 2500);
         }
 
         function freezeTower() {
@@ -955,16 +957,13 @@
             extractedBlockData.mesh.material.color.setHex(extractedBlockData.mesh.userData.originalColor);
 
             blocks.forEach(b => {
-                b.body.mass = 0.3;
+                b.body.mass = 0;
                 b.body.updateMassProperties();
-                b.isDynamic = true;
+                b.isDynamic = false;
             });
 
             extractedBlockData = null;
-            startSuccessCheckTimerForPlacement();
-        }
-
-        function startSuccessCheckTimerForPlacement() {
+            
             gameState = 'check';
             timerSeconds = 3;
             timerInterval = setInterval(() => {
@@ -973,33 +972,16 @@
                     showBanner(`設置安定確認中... (${timerSeconds}秒)`);
                 } else {
                     clearInterval(timerInterval);
-                    checkPlacementStability();
+                    showBanner('ターンクリア！次のプレイヤーへ');
+                    selectedBlock = null;
+                    setTimeout(() => {
+                        gameState = 'view';
+                        lookAtY = 6;
+                        updateCameraPosition();
+                        showBanner('');
+                    }, 2000);
                 }
             }, 1000);
-        }
-
-        function checkPlacementStability() {
-            let isCollapsed = false;
-            blocks.forEach(b => {
-                if (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4) {
-                    isCollapsed = true;
-                }
-            });
-
-            if (isCollapsed) {
-                gameState = 'gameover';
-                showBanner('GAME OVER: 設置後に崩壊しました！');
-            } else {
-                freezeTower();
-                showBanner('ターンクリア！次のプレイヤーへ');
-                selectedBlock = null;
-                setTimeout(() => {
-                    gameState = 'view';
-                    lookAtY = 6;
-                    updateCameraPosition();
-                    showBanner('');
-                }, 2000);
-            }
         }
 
         const clock = new THREE.Clock();
@@ -1011,6 +993,7 @@
             if (world) {
                 if (gameState === 'action' || gameState === 'check') {
                     world.step(1 / 60, delta, 3);
+                    checkTowerCollapse(); // 毎フレーム倒壊を監視して即ゲームオーバー
                 }
                 for (let i = 0; i < blocks.length; i++) {
                     blocks[i].mesh.position.copy(blocks[i].body.position);
