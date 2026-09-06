@@ -23,7 +23,6 @@
             background: linear-gradient(to bottom, #4a90e2, #87ceeb);
         }
         
-        /* 共通画面スタイル */
         .screen {
             position: absolute;
             top: 0;
@@ -86,11 +85,6 @@
             border-radius: 10px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             cursor: pointer;
-            transition: 0.2s;
-        }
-        .menu-btn:active {
-            transform: scale(0.95);
-            background: #eee;
         }
 
         /* ゲーム画面 */
@@ -164,7 +158,7 @@
         }
         #punch-btn {
             background: #e91e63;
-            display: none; /* アクション中のみ表示・点灯 */
+            display: none;
         }
         #punch-btn.active {
             display: block;
@@ -252,7 +246,6 @@
             position: absolute;
             top: 0;
             left: 0;
-            box-shadow: 0 0 10px #ffeb3b;
         }
         .gauge-stop-btn {
             padding: 15px 40px;
@@ -263,22 +256,23 @@
             border: none;
             border-radius: 30px;
             cursor: pointer;
-            box-shadow: 0 5px 15px rgba(255,152,0,0.5);
         }
 
-        /* 演出テキスト・メッセージ */
+        /* メッセージバナー */
         #message-banner {
             position: absolute;
-            top: 20%;
+            top: 15%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 2rem;
+            font-size: 1.6rem;
             font-weight: bold;
             color: #ffeb3b;
             text-shadow: 0 2px 10px rgba(0,0,0,0.8);
             z-index: 30;
             pointer-events: none;
             transition: 0.3s;
+            text-align: center;
+            width: 100%;
         }
     </style>
 </head>
@@ -303,11 +297,9 @@
     <div id="game-screen" class="screen hidden">
         <div id="canvas-container"></div>
 
-        <!-- 左右回転矢印 -->
         <div class="arrow-btn" id="arrow-left">◀</div>
         <div class="arrow-btn" id="arrow-right">▶</div>
 
-        <!-- 左側GUI -->
         <div id="gui-panel">
             <div class="gui-row">P: <span id="player-name">YOSHIO</span></div>
             <div class="gui-row">獲得: <span id="score-count">0</span> 本</div>
@@ -317,7 +309,6 @@
             <button class="gui-btn" id="punch-btn">打ち抜く！</button>
         </div>
 
-        <!-- 成功・演出メッセージ -->
         <div id="message-banner"></div>
     </div>
 
@@ -332,7 +323,7 @@
         </div>
     </div>
 
-    <!-- 威力ゲージオーバーレイ -->
+    <!-- 威力ゲージ -->
     <div id="gauge-overlay">
         <h2 style="margin:0; text-shadow:0 2px 5px rgba(0,0,0,0.5);">威力ゲージ</h2>
         <div class="gauge-bar-container" id="gauge-container">
@@ -342,16 +333,15 @@
     </div>
 
     <script>
-        // --- アプリケーション状態管理 ---
-        let currentScreen = 'title';
+        // --- 状態管理 ---
+        let gameState = 'title'; // 'view', 'action', 'check', 'place', 'gameover'
         let isZoomed = false;
-        let isActionActive = false;
         let selectedBlock = null;
+        let extractedBlockData = null;
         let passRemaining = 2;
         let score = 0;
-        let isAnimatingGauge = false;
-        let gaugePos = 0;
-        let gaugeDir = 1;
+        let timerSeconds = 0;
+        let timerInterval = null;
 
         // --- DOM要素 ---
         const titleScreen = document.getElementById('title-screen');
@@ -360,8 +350,7 @@
         const confirmPopup = document.getElementById('confirm-popup');
         const gaugeOverlay = document.getElementById('gauge-overlay');
         const messageBanner = document.getElementById('message-banner');
-        
-        // 画面遷移イベント
+
         document.getElementById('start-trigger').addEventListener('click', () => {
             titleScreen.classList.add('hidden');
             menuScreen.classList.remove('hidden');
@@ -378,28 +367,28 @@
             alert('ブラウザのタブを閉じてください。');
         });
 
-        // --- Three.js & Cannon.js 初期化 ---
+        // --- Three.js & Cannon.js ---
         let scene, camera, renderer, world;
         let blocks = [];
         let towerGroup;
         let raycaster = new THREE.Raycaster();
         let mouse = new THREE.Vector2();
 
-        // カメラ・視点コントロール用変数
+        // カメラパラメータ（平行表示・支点連動）
         let cameraAngle = 0;
-        let cameraHeight = 10;
-        let cameraRadius = 18;
+        let lookAtY = 6;      // 注視点のY（支点）
+        let cameraHeightOffset = 8; // 注視点からの高さオフセット
+        let cameraRadius = 16;
         let isDragging = false;
         let previousTouchY = 0;
 
         function initGame3D() {
             const container = document.getElementById('canvas-container');
 
-            // シーン・カメラ・レンダラー
             scene = new THREE.Scene();
             scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
 
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
             updateCameraPosition();
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -408,20 +397,18 @@
             renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // 物理ワールド
+            // 物理ワールド（初期は重力を弱くせず通常設定だが、全静止状態）
             world = new CANNON.World();
             world.gravity.set(0, -9.82, 0);
 
             // ライティング
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
-
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
             dirLight.position.set(15, 30, 15);
             dirLight.castShadow = true;
             scene.add(dirLight);
 
-            // 台座 (Base)
+            // 台座
             const baseGeo = new THREE.BoxGeometry(6, 1, 6);
             const baseMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
             const baseMesh = new THREE.Mesh(baseGeo, baseMat);
@@ -434,15 +421,13 @@
             baseBody.position.set(0, -0.5, 0);
             world.addBody(baseBody);
 
-            // ジェンガブロック生成 (20段 × 3本 = 60本)
+            // 20段 × 3本 = 60本
             towerGroup = new THREE.Group();
             scene.add(towerGroup);
 
             const blockWidth = 1.2;
             const blockHeight = 0.6;
             const blockDepth = 3.6;
-            const massPerBlock = 1.0;
-
             const blockShape = new CANNON.Box(new CANNON.Vec3(blockWidth/2, blockHeight/2, blockDepth/2));
 
             for (let i = 0; i < 20; i++) {
@@ -450,65 +435,58 @@
                 let isEven = (i % 2 === 0);
 
                 for (let j = 0; j < 3; j++) {
-                    let x = 0, z = 0;
-                    let rotY = 0;
-
+                    let x = 0, z = 0, rotY = 0;
                     if (isEven) {
-                        // 横向き (X軸方向)
                         x = (j - 1) * 1.25;
                         rotY = 0;
                     } else {
-                        // 縦向き (Z軸方向)
                         z = (j - 1) * 1.25;
                         rotY = Math.PI / 2;
                     }
 
-                    // Three.js メッシュ
                     const geo = new THREE.BoxGeometry(blockWidth, blockHeight, blockDepth);
                     const mat = new THREE.MeshStandardMaterial({ color: 0xDEB887, roughness: 0.4 });
                     const mesh = new THREE.Mesh(geo, mat);
                     mesh.castShadow = true;
                     mesh.receiveShadow = true;
-                    
-                    // ユーザーデータとして管理用情報を持たせる
-                    mesh.userData = { id: blocks.length, originalColor: 0xDEB887, isSelected: false };
+                    mesh.userData = { id: blocks.length, originalColor: 0xDEB887, floor: i };
                     towerGroup.add(mesh);
 
-                    // Cannon.js ボディ
-                    const body = new CANNON.Body({ mass: massPerBlock });
+                    // 【重要】視点操作時は物理演算を完全に効かせないため、最初は mass = 0 (Static)
+                    const body = new CANNON.Body({ mass: 0 });
                     body.addShape(blockShape);
-                    
-                    // 回転を考慮した初期位置・姿勢
                     body.position.set(x, y, z);
                     body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), rotY);
                     world.addBody(body);
 
-                    blocks.push({ mesh, body });
+                    blocks.push({ mesh, body, initialPos: new CANNON.Vec3(x, y, z), isDynamic: false });
                 }
             }
 
-            // イベント登録
+            gameState = 'view';
             initEvents();
-
-            // ループ開始
             animate();
         }
 
-        // カメラ位置計算
+        // カメラ位置更新（支点連動・拡大は5段分サイズ）
         function updateCameraPosition() {
-            let targetY = isZoomed ? 3 : cameraHeight;
-            let targetRadius = isZoomed ? 6 : cameraRadius;
-            
+            let targetRadius = isZoomed ? 6 : 18;
+            if (isZoomed) {
+                // 5段分（高さ約3.0）がおさまる拡大サイズ
+                cameraHeightOffset = 3.0;
+            } else {
+                cameraHeightOffset = 8.0;
+            }
+
             const rad = cameraAngle * Math.PI / 180;
             camera.position.x = Math.sin(rad) * targetRadius;
             camera.position.z = Math.cos(rad) * targetRadius;
-            camera.position.y = targetY;
-            camera.lookAt(0, isZoomed ? 3 : 6, 0);
+            camera.position.y = lookAtY + cameraHeightOffset;
+            camera.lookAt(0, lookAtY, 0);
         }
 
-        // --- 操作・イベントハンドリング ---
+        // --- イベント管理 ---
         function initEvents() {
-            // 左右回転ボタン
             document.getElementById('arrow-left').addEventListener('click', () => {
                 cameraAngle -= 45;
                 updateCameraPosition();
@@ -518,73 +496,64 @@
                 updateCameraPosition();
             });
 
-            // 上下スライド（通常時のみ画面移動）
+            // 上下スライド（支点ごと上下に動く）
             window.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 1) {
+                if (e.touches.length === 1 && gameState === 'view') {
                     isDragging = true;
                     previousTouchY = e.touches[0].clientY;
                 }
             });
 
             window.addEventListener('touchmove', (e) => {
-                if (!isDragging) return;
-                // アクションモード中は上下スライド禁止
-                if (isActionActive) return; 
-
+                if (!isDragging || gameState !== 'view') return;
                 const currentY = e.touches[0].clientY;
                 const deltaY = currentY - previousTouchY;
                 previousTouchY = currentY;
 
-                if (!isZoomed) {
-                    cameraHeight += deltaY * 0.05;
-                    cameraHeight = Math.max(2, Math.min(25, cameraHeight));
-                    updateCameraPosition();
-                }
+                // 支点(lookAtY)を上下に動かし、カメラも一緒に平行移動
+                lookAtY -= deltaY * 0.05;
+                lookAtY = Math.max(3, Math.min(15, lookAtY));
+                updateCameraPosition();
             });
 
-            window.addEventListener('touchend', () => {
-                isDragging = false;
-            });
+            window.addEventListener('touchend', () => { isDragging = false; });
 
-            // ブロックタップ（Raycaster判定）
+            // タップ選択
             window.addEventListener('click', (e) => {
-                // UI上のクリックはスルー
-                if (e.target.closest('#gui-panel') || e.target.closest('#confirm-popup') || e.target.closest('#gauge-overlay') || e.target.closest('.arrow-btn')) {
-                    return;
-                }
+                if (e.target.closest('#gui-panel') || e.target.closest('#confirm-popup') || e.target.closest('#gauge-overlay') || e.target.closest('.arrow-btn')) return;
 
-                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                if (gameState === 'view') {
+                    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObjects(blocks.map(b => b.mesh));
 
-                raycaster.setFromCamera(mouse, camera);
-                const meshes = blocks.map(b => b.mesh);
-                const intersects = raycaster.intersectObjects(meshes);
-
-                if (intersects.length > 0) {
-                    const hitMesh = intersects[0].object;
-                    handleBlockTap(hitMesh);
+                    if (intersects.length > 0) {
+                        const hitMesh = intersects[0].object;
+                        selectBlockForConfirmation(hitMesh);
+                    }
+                } else if (gameState === 'place') {
+                    // 上から見た配置微調整（ツンツンして置く位置を決定）
+                    placeExtractedBlock();
                 }
             });
 
-            // GUI: 拡大/縮小ボタン
             document.getElementById('zoom-btn').addEventListener('click', () => {
                 isZoomed = !isZoomed;
                 document.getElementById('zoom-btn').textContent = isZoomed ? '縮小表示' : '拡大表示';
                 updateCameraPosition();
             });
 
-            // パスボタン
             document.getElementById('pass-btn').addEventListener('click', () => {
-                if (passRemaining > 0) {
+                if (passRemaining > 0 && gameState === 'view') {
                     passRemaining--;
                     document.getElementById('pass-count').textContent = passRemaining;
-                    showBanner('パスしました！');
+                    showBanner('パスしました！次のプレイヤーへ');
                 } else {
-                    alert('パス回数が残っていません！');
+                    alert('パスできない状態か、回数が残っていません！');
                 }
             });
 
-            // ポップアップボタン
             document.getElementById('pop-no').addEventListener('click', () => {
                 confirmPopup.classList.add('hidden');
                 if (selectedBlock) {
@@ -595,45 +564,53 @@
 
             document.getElementById('pop-ok').addEventListener('click', () => {
                 confirmPopup.classList.add('hidden');
-                startActionModule();
+                startActionPhase();
             });
 
-            // 打ち抜くボタン
             document.getElementById('punch-btn').addEventListener('click', () => {
-                openGauge();
+                if (gameState === 'action') openGauge();
             });
 
-            // ゲージストップボタン
             document.getElementById('gauge-stop-btn').addEventListener('click', () => {
                 stopGauge();
             });
         }
 
-        // ブロックタップ時の処理
-        function handleBlockTap(mesh) {
-            if (selectedBlock && selectedBlock !== mesh) {
+        function selectBlockForConfirmation(mesh) {
+            if (selectedBlock) {
                 selectedBlock.material.color.setHex(selectedBlock.userData.originalColor);
             }
             selectedBlock = mesh;
             selectedBlock.material.color.setHex(0xff0000); // 赤く表示
-
-            // 確認ポップアップ表示
             confirmPopup.classList.remove('hidden');
         }
 
-        // アクションモードへ移行
-        function startActionModule() {
-            isActionActive = true;
-            isZoomed = true; // 自動で拡大画面モード
+        // --- アクションフェーズ開始（物理演算有効化） ---
+        function startActionPhase() {
+            gameState = 'action';
+            isZoomed = true; // 5段分の拡大表示
             document.getElementById('zoom-btn').textContent = '縮小表示';
+            
+            // 支点を選択されたブロックの高さに合わせる
+            lookAtY = selectedBlock.position.y;
             updateCameraPosition();
 
-            // 打ち抜くボタン点灯
+            // すべてのブロックに重み（mass = 1.0）を与え、物理演算を有効化開始！
+            blocks.forEach(b => {
+                b.body.mass = 1.0;
+                b.body.updateMassProperties();
+                b.isDynamic = true;
+            });
+
             document.getElementById('punch-btn').classList.add('active');
-            showBanner('【獲得アクション】棒を押し出すか打ち抜け！');
+            showBanner('アクションモード開始！棒を押し出すか打ち抜け！');
         }
 
-        // 威力ゲージ起動
+        // 威力ゲージ
+        let isAnimatingGauge = false;
+        let gaugePos = 0;
+        let gaugeDir = 1;
+
         function openGauge() {
             isAnimatingGauge = true;
             gaugePos = 0;
@@ -644,55 +621,159 @@
 
         function updateGaugeAnimation() {
             if (!isAnimatingGauge) return;
-            gaugePos += gaugeDir * 3;
-            if (gaugePos >= 90 || gaugePos <= 0) {
-                gaugeDir *= -1;
-            }
+            gaugePos += gaugeDir * 4;
+            if (gaugePos >= 90 || gaugePos <= 0) gaugeDir *= -1;
             document.getElementById('gauge-cursor').style.left = gaugePos + '%';
             requestAnimationFrame(updateGaugeAnimation);
         }
 
-        // ゲージストップ＆打ち抜き演出
         function stopGauge() {
             isAnimatingGauge = false;
             gaugeOverlay.style.display = 'none';
 
-            let powerScore = Math.floor(Math.abs(gaugePos - 45) * 2 + 10); // 威力数値化
-            
-            // 画面揺れ演出
-            document.body.style.transform = 'translate(5px, 5px)';
-            setTimeout(() => { document.body.style.transform = 'translate(-5px, -3px)'; }, 50);
-            setTimeout(() => { document.body.style.transform = 'translate(0, 0)'; }, 100);
+            let power = Math.floor(Math.abs(gaugePos - 45) * 2 + 10);
+            showBanner(`威力: ${power}！ 打ち抜き発動！`);
 
-            showBanner(`威力: ${powerScore} ! 抜き取り成功！`);
-
-            // 選択されたブロックを物理ワールドから外して飛ばす / 獲得処理
-            if (selectedBlock) {
-                const targetObj = blocks.find(b => b.mesh === selectedBlock);
-                if (targetObj) {
-                    // 物理的に勢いをつけて弾き飛ばす
-                    targetObj.body.velocity.set(0, 5, 10);
-                    targetObj.body.angularVelocity.set(5, 5, 0);
-                }
-                score++;
-                document.getElementById('score-count').textContent = score;
+            // 選択棒を弾き飛ばす
+            const target = blocks.find(b => b.mesh === selectedBlock);
+            if (target) {
+                target.body.velocity.set(0, 3, 12);
+                target.body.angularVelocity.set(4, 4, 0);
+                extractedBlockData = target;
             }
 
-            // 状態リセット
-            setTimeout(() => {
-                isActionActive = false;
-                document.getElementById('punch-btn').classList.remove('active');
-                selectedBlock = null;
-            }, 1500);
+            // 3秒間の成功判定タイマー開始
+            startSuccessCheckTimer();
         }
 
-        // バナーメッセージ表示
-        function showBanner(text) {
-            messageBanner.textContent = text;
-            messageBanner.style.opacity = '1';
-            setTimeout(() => {
-                messageBanner.style.opacity = '0';
-            }, 2500);
+        // --- 3秒間ジェンガが倒れないか判定するタイマー ---
+        function startSuccessCheckTimer() {
+            gameState = 'check';
+            document.getElementById('punch-btn').classList.remove('active');
+            timerSeconds = 3;
+            showBanner('バランス確認中... (3秒)');
+
+            timerInterval = setInterval(() => {
+                timerSeconds--;
+                if (timerSeconds > 0) {
+                    showBanner(`バランス確認中... (${timerSeconds}秒)`);
+                } else {
+                    clearInterval(timerInterval);
+                    checkTowerStability();
+                }
+            }, 1000);
+        }
+
+        // タワーが崩れていないか判定
+        function checkTowerStability() {
+            // 簡易崩壊判定：いずれかのブロックが大きく落ちていないか・傾いていないか
+            let isCollapsed = false;
+            blocks.forEach(b => {
+                if (b !== extractedBlockData && (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4)) {
+                    isCollapsed = true;
+                }
+            });
+
+            if (isCollapsed) {
+                gameState = 'gameover';
+                showBanner('GAME OVER: タワーが崩れました！');
+            } else {
+                // 3秒経過成功！物理演算を停止して固定
+                freezeTower();
+                score++;
+                document.getElementById('score-count').textContent = score;
+                showBanner('抜き取り成功！ 上部に配置してください');
+                
+                // 配置フェーズへ
+                startPlacementPhase();
+            }
+        }
+
+        // 物理演算停止＆強制固定
+        function freezeTower() {
+            blocks.forEach(b => {
+                b.body.mass = 0;
+                b.body.velocity.set(0,0,0);
+                b.body.angularVelocity.set(0,0,0);
+                b.body.updateMassProperties();
+                b.isDynamic = false;
+            });
+        }
+
+        // --- 配置（積み上げ）フェーズ ---
+        function startPlacementPhase() {
+            gameState = 'place';
+            // 上から見た画面にカメラを移動
+            lookAtY = 15;
+            cameraAngle = 0;
+            isZoomed = false;
+            updateCameraPosition();
+
+            if (extractedBlockData) {
+                extractedBlockData.mesh.material.transparent = true;
+                extractedBlockData.mesh.material.opacity = 0.6; // 半透明表示
+            }
+        }
+
+        function placeExtractedBlock() {
+            if (!extractedBlockData) return;
+
+            showBanner('配置位置決定！安定確認中...(3秒)');
+            
+            // 塔の最上部に移動させる
+            let topY = 20 * 0.6 + 0.6;
+            extractedBlockData.body.position.set(0, topY, 0);
+            extractedBlockData.mesh.material.transparent = false;
+            extractedBlockData.mesh.material.opacity = 1.0;
+            extractedBlockData.mesh.material.color.setHex(extractedBlockData.mesh.userData.originalColor);
+
+            // 再度物理演算をオンにして3秒確認
+            blocks.forEach(b => {
+                b.body.mass = 1.0;
+                b.body.updateMassProperties();
+                b.isDynamic = true;
+            });
+
+            extractedBlockData = null;
+            startSuccessCheckTimerForPlacement();
+        }
+
+        function startSuccessCheckTimerForPlacement() {
+            gameState = 'check';
+            timerSeconds = 3;
+            timerInterval = setInterval(() => {
+                timerSeconds--;
+                if (timerSeconds > 0) {
+                    showBanner(`設置安定確認中... (${timerSeconds}秒)`);
+                } else {
+                    clearInterval(timerInterval);
+                    checkPlacementStability();
+                }
+            }, 1000);
+        }
+
+        function checkPlacementStability() {
+            let isCollapsed = false;
+            blocks.forEach(b => {
+                if (b.body.position.y < -0.2 || Math.abs(b.body.position.x) > 4 || Math.abs(b.body.position.z) > 4) {
+                    isCollapsed = true;
+                }
+            });
+
+            if (isCollapsed) {
+                gameState = 'gameover';
+                showBanner('GAME OVER: 設置後に崩壊しました！');
+            } else {
+                freezeTower();
+                showBanner('ターンクリア！次のプレイヤーへ');
+                selectedBlock = null;
+                setTimeout(() => {
+                    gameState = 'view';
+                    lookAtY = 6;
+                    updateCameraPosition();
+                    showBanner('');
+                }, 2000);
+            }
         }
 
         // --- メインループ ---
@@ -703,12 +784,13 @@
 
             const delta = clock.getDelta();
             if (world) {
-                world.step(1 / 60, delta, 3);
-
-                // Three.js と Cannon.js の位置・姿勢同期
-                for (let i = 0; i < blocks.length; i++) {
-                    blocks[i].mesh.position.copy(blocks[i].body.position);
-                    blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
+                // アクション中または確認中のみワールドステップを回す（視点操作時は完全に固定）
+                if (gameState === 'action' || gameState === 'check') {
+                    world.step(1 / 60, delta, 3);
+                    for (let i = 0; i < blocks.length; i++) {
+                        blocks[i].mesh.position.copy(blocks[i].body.position);
+                        blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
+                    }
                 }
             }
 
@@ -717,7 +799,11 @@
             }
         }
 
-        // ウィンドウリサイズ対応
+        function showBanner(text) {
+            messageBanner.textContent = text;
+            messageBanner.style.opacity = '1';
+        }
+
         window.addEventListener('resize', () => {
             if (camera && renderer) {
                 camera.aspect = window.innerWidth / window.innerHeight;
