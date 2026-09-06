@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>YOSHIO JENGGA - Balance Adjusted Edition</title>
+    <title>YOSHIO JENGGA - Perfect Balance Edition</title>
     <!-- Three.js & Cannon.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
@@ -447,9 +447,13 @@
 
         let cameraAngle = 0;
         let lookAtY = 6;
-        let cameraHeightOffset = 9.0;
+        let cameraHeightOffset = 10.0;
         let isViewDragging = false;
         let previousTouchY = 0;
+
+        const blockWidth = 1.2;
+        const blockHeight = 0.6;
+        const blockDepth = 3.6;
 
         function initGame3D() {
             const container = document.getElementById('canvas-container');
@@ -469,7 +473,7 @@
 
             world = new CANNON.World();
             world.gravity.set(0, -9.82, 0);
-            world.solver.iterations = 30;
+            world.solver.iterations = 40; // 物理演算の精度を高めて安定化
 
             scene.add(new THREE.AmbientLight(0xffffff, 0.7));
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -493,9 +497,6 @@
             towerGroup = new THREE.Group();
             scene.add(towerGroup);
 
-            const blockWidth = 1.2;
-            const blockHeight = 0.6;
-            const blockDepth = 3.6;
             const blockShape = new CANNON.Box(new CANNON.Vec3(blockWidth/2, blockHeight/2, blockDepth/2));
 
             for (let i = 0; i < 20; i++) {
@@ -538,11 +539,12 @@
         }
 
         function updateCameraPosition() {
-            let targetRadius = isZoomed ? 10 : 20;
+            // ズーム時も近すぎないように調整（見やすさを改善）
+            let targetRadius = isZoomed ? 14 : 22;
             if (isZoomed) {
-                cameraHeightOffset = 4.2;
+                cameraHeightOffset = 5.5;
             } else {
-                cameraHeightOffset = 9.0;
+                cameraHeightOffset = 10.0;
             }
 
             const rad = cameraAngle * Math.PI / 180;
@@ -676,7 +678,7 @@
             });
         }
 
-        // --- ツンツンアクション（重みを軽くしてしっかり反応するように調整） ---
+        // --- ツンツンアクション（端にオフセットを与えて回転しながら逆側に飛び出すよう改良） ---
         function doTsunTsun(power) {
             if (gameState !== 'action' || isTsunLocked || !selectedBlock) return;
 
@@ -686,11 +688,14 @@
             isTsunLocked = true;
             extractedBlockData = targetObj;
 
-            // 力を強めに設定してしっかり動くようにする
-            const localVector = new CANNON.Vec3(0, 0, power * 0.4);
+            const localVector = new CANNON.Vec3(0, 0, power * 0.9);
             const worldVector = targetObj.body.quaternion.vmult(localVector);
             
-            targetObj.body.applyImpulse(worldVector, targetObj.body.position);
+            // ブロックの端に力を加えて回転しやすくする（逆側にせり出しやすくなる）
+            const offset = new CANNON.Vec3(0, 0, 1.0);
+            const worldOffset = targetObj.body.quaternion.vmult(offset);
+            
+            targetObj.body.applyImpulse(worldVector, targetObj.body.position.vadd(worldOffset));
             showBanner(`ツン！ (威力: ${power})`);
 
             let subTimer = 0.5;
@@ -743,13 +748,9 @@
             lookAtY = selectedBlock.position.y;
             updateCameraPosition();
 
-            // 選択された棒の重みを軽め（mass = 0.6）にして動かしやすくする
+            // アクション開始時に全ブロックに重み（mass = 0.5）を持たせ、崩れるスリルを演出
             blocks.forEach(b => {
-                if (b.mesh === selectedBlock) {
-                    b.body.mass = 0.6;
-                } else {
-                    b.body.mass = 0; // 他は完全固定
-                }
+                b.body.mass = 0.5;
                 b.body.updateMassProperties();
                 b.isDynamic = true;
             });
@@ -758,7 +759,7 @@
             document.getElementById('finish-extract-btn').classList.add('active');
             document.getElementById('tsuntsun-panel').classList.add('active');
             
-            showBanner('【アクション】ツンツン・打ち抜く・ドラッグ！');
+            showBanner('【アクション】バランスに注意して抜いてください！');
         }
 
         // --- パワーゲージ（左0 〜 右100、スピードランダム変動） ---
@@ -769,7 +770,7 @@
         function openGauge() {
             isAnimatingGauge = true;
             gaugePos = 0;
-            gaugeSpeed = 1.5 + Math.random() * 2.5; // 初期スピードをランダムに設定
+            gaugeSpeed = 1.5 + Math.random() * 2.5;
             gaugeOverlay.style.display = 'flex';
             requestAnimationFrame(updateGaugeAnimation);
         }
@@ -779,7 +780,6 @@
 
             gaugePos += gaugeSpeed;
 
-            // 端に達したらスピードをランダムに変えて折り返す
             if (gaugePos >= 100) {
                 gaugePos = 100;
                 gaugeSpeed = -(1.5 + Math.random() * 3.5);
@@ -808,7 +808,7 @@
                 return;
             }
 
-            pendingPunchPower = Math.floor(gaugePos * 0.4 + 5);
+            pendingPunchPower = Math.floor(gaugePos * 0.5 + 8);
             shakeDuration = 0.5;
             shakeIntensity = 0.4;
 
@@ -857,7 +857,7 @@
         function executePunch() {
             const target = blocks.find(b => b.mesh === selectedBlock);
             if (target) {
-                target.body.velocity.set(0, 2, pendingPunchPower * 0.5);
+                target.body.velocity.set(0, 2, pendingPunchPower * 0.6);
                 target.body.angularVelocity.set(4, 4, 0);
                 extractedBlockData = target;
             }
@@ -971,21 +971,34 @@
                     target.mesh.material.opacity = 0.6;
                 }
             }
-            showBanner('上部をタップして棒を配置してください');
+            showBanner('画面をタップして最上段に配置してください');
         }
 
+        // --- 最上段への正しい配置（十字バグ修正版） ---
         function placeExtractedBlock() {
             if (!extractedBlockData) return;
             showBanner('配置完了！安定確認中...(3秒)');
             
-            let topY = 20 * 0.6 + 0.6;
+            // 現在の総フロア数に基づいた正しい最上段の位置を計算
+            let currentFloor = 20 + score - 1;
+            let topY = blockHeight/2 + currentFloor * blockHeight;
+            let isEven = (currentFloor % 2 === 0);
+
+            // 正しい向き（偶数・奇数階の交互）に合わせた配置
             extractedBlockData.body.position.set(0, topY, 0);
+            extractedBlockData.body.quaternion.setFromAxisAngle(
+                new CANNON.Vec3(0, 1, 0), 
+                isEven ? 0 : Math.PI / 2
+            );
+
             extractedBlockData.mesh.material.transparent = false;
             extractedBlockData.mesh.material.opacity = 1.0;
             extractedBlockData.mesh.material.color.setHex(extractedBlockData.mesh.userData.originalColor);
 
             blocks.forEach(b => {
                 b.body.mass = 0;
+                b.body.velocity.set(0,0,0);
+                b.body.angularVelocity.set(0,0,0);
                 b.body.updateMassProperties();
                 b.isDynamic = false;
             });
