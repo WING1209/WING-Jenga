@@ -2,13 +2,15 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <!-- スマホの安全領域（ノッチ・バー）を考慮したviewport設定 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>オンラインババ抜き - スマホ版</title>
   <style>
     :root {
       --bg-color: #1b4d3e;
-      --card-width: 50px;
-      --card-height: 75px;
+      /* 画面幅に合わせてカードサイズを自動調整（最小40px〜最大60px） */
+      --card-width: clamp(40px, 12vw, 60px);
+      --card-height: calc(var(--card-width) * 1.45);
     }
 
     * {
@@ -16,23 +18,23 @@
       margin: 0;
       padding: 0;
       user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
-    body {
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
       background-color: var(--bg-color);
       color: white;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-      position: relative;
     }
 
     /* ==========================================
-       タイトル画面のスタイル
+       ① タイトル画面のスタイル
     ========================================== */
     #title-screen {
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
       width: 100%;
@@ -44,25 +46,27 @@
       align-items: center;
       z-index: 1000;
       cursor: pointer;
-    }
-
-    .title-logo {
-      font-size: 32px;
-      font-weight: bold;
-      color: #ffd700;
-      text-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
-      margin-bottom: 10px;
+      padding: 20px;
       text-align: center;
     }
 
+    .title-logo {
+      font-size: clamp(24px, 7vw, 36px);
+      font-weight: bold;
+      color: #ffd700;
+      text-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+
     .title-sub {
-      font-size: 14px;
+      font-size: clamp(12px, 3.5vw, 16px);
       color: #e0e0e0;
-      margin-bottom: 50px;
+      margin-bottom: 40px;
     }
 
     .start-msg {
-      font-size: 20px;
+      font-size: clamp(16px, 5vw, 22px);
       font-weight: bold;
       color: #ffffff;
       animation: blink 1.2s infinite;
@@ -71,48 +75,62 @@
 
     @keyframes blink {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.1; }
+      50% { opacity: 0.15; }
     }
 
     /* ==========================================
-       メインゲーム画面のスタイル
+       ② メインゲーム画面のスタイル
     ========================================== */
     #game-screen {
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      height: 100%;
       width: 100%;
+      height: 100vh;
+      /* iPhone等のノッチやホームバーの安全領域（セーフエリア）を自動確保 */
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
     }
 
     /* 上部：対戦相手エリア */
     .opponents-container {
       display: flex;
       justify-content: space-around;
-      padding: 10px 5px;
-      background: rgba(0, 0, 0, 0.3);
+      align-items: center;
+      padding: 8px 4px;
+      background: rgba(0, 0, 0, 0.35);
+      min-height: 60px;
     }
 
     .player-node {
       display: flex;
       flex-direction: column;
       align-items: center;
-      font-size: 12px;
+      font-size: 11px;
       width: 30%;
+    }
+
+    .p-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
 
     .opponent-cards {
       display: flex;
-      margin-top: 6px;
+      margin-top: 4px;
     }
 
     .card-mini {
-      width: 16px;
-      height: 24px;
+      width: clamp(12px, 3.5vw, 18px);
+      height: clamp(18px, 5vw, 26px);
       background: #2a52be;
       border: 1px solid #fff;
-      border-radius: 3px;
-      margin-left: -8px;
+      border-radius: 2px;
+      margin-left: -6px;
       box-shadow: 1px 1px 3px rgba(0,0,0,0.4);
     }
     .card-mini:first-child { margin-left: 0; }
@@ -125,47 +143,54 @@
       justify-content: center;
       align-items: center;
       padding: 10px;
+      z-index: 5;
     }
 
     .status-msg {
-      font-size: 15px;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 10px 20px;
+      font-size: clamp(13px, 4vw, 16px);
+      background: rgba(0, 0, 0, 0.75);
+      padding: 8px 16px;
       border-radius: 20px;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
       text-align: center;
       border: 1px solid rgba(255,255,255,0.2);
+      max-width: 90%;
     }
 
     .action-btn {
       background: #ff9800;
       color: white;
       border: none;
-      padding: 12px 24px;
-      font-size: 15px;
+      padding: 10px 20px;
+      font-size: clamp(13px, 4vw, 16px);
       font-weight: bold;
       border-radius: 25px;
       box-shadow: 0 4px 8px rgba(0,0,0,0.4);
       cursor: pointer;
       display: none;
     }
+    .action-btn:active {
+      transform: scale(0.95);
+    }
 
     /* 下部：自分のエリア */
     .my-area {
-      background: rgba(0, 0, 0, 0.4);
-      padding: 12px 5px;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 8px 0;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
+      width: 100%;
     }
 
     /* アイテム欄 */
     .item-bar {
       display: flex;
-      gap: 6px;
+      gap: 4px;
       width: 100%;
       justify-content: center;
+      padding: 0 5px;
       flex-wrap: wrap;
     }
 
@@ -173,23 +198,34 @@
       background: #222;
       border: 1px solid #ffcc00;
       color: #ffcc00;
-      padding: 6px 8px;
-      font-size: 11px;
+      padding: 5px 8px;
+      font-size: clamp(10px, 3vw, 12px);
       border-radius: 6px;
       cursor: pointer;
+      white-space: nowrap;
+    }
+    .item-btn:active {
+      background: #444;
     }
 
-    /* 自分の手札コンテナ */
+    /* 自分の手札コンテナ（はみ出た場合に横スクロール可能に） */
+    .my-cards-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 10px 15px;
+      display: flex;
+      justify-content: center; /* カードが少数のときは中央寄り */
+      -webkit-overflow-scrolling: touch;
+    }
+
     .my-cards {
       display: flex;
-      justify-content: center;
       align-items: center;
-      width: 100%;
-      min-height: 85px;
-      padding: 5px 0;
+      min-height: calc(var(--card-height) + 15px);
     }
 
-    /* カードデザイン修正版 */
+    /* カードデザイン（動的サイズ・重なり幅調整） */
     .card {
       width: var(--card-width);
       height: var(--card-height);
@@ -200,25 +236,26 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      font-size: 16px;
+      font-size: clamp(12px, 3.8vw, 16px);
       font-weight: bold;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.4);
-      margin-left: -12px; /* 重なり具合を最適化 */
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      /* カード幅に応じた負のマージンで重ねる */
+      margin-left: calc(var(--card-width) * -0.35);
       position: relative;
       transition: transform 0.2s, box-shadow 0.2s;
-      border: 1px solid #ccc;
+      border: 1px solid #bbb;
       flex-shrink: 0;
     }
     .card:first-child { margin-left: 0; }
 
     .card.red { color: #d32f2f; }
     .card.joker { 
-      background: #8e24aa; 
+      background: #7b1fa2; 
       color: white; 
       border-color: #ba68c8;
     }
 
-    /* 揃ったカード（外枠点灯アニメーション） */
+    /* 揃ったカード（外枠点灯・持ち上がりアニメーション） */
     .card.match {
       animation: pulse-glow 1s infinite alternate;
       z-index: 10;
@@ -227,11 +264,11 @@
 
     @keyframes pulse-glow {
       0% {
-        box-shadow: 0 0 8px #00ffff, 0 0 12px #00ffff;
+        box-shadow: 0 0 6px #00ffff, 0 0 10px #00ffff;
         border: 2px solid #00ffff;
       }
       100% {
-        box-shadow: 0 0 18px #00ffff, 0 0 28px #00ffff;
+        box-shadow: 0 0 14px #00ffff, 0 0 22px #00ffff;
         border: 2px solid #ffffff;
       }
     }
@@ -281,28 +318,29 @@
         <button class="item-btn" onclick="useItem('強奪')">▣ 強奪</button>
       </div>
 
-      <!-- 自分の手札 -->
-      <div class="my-cards" id="my-cards"></div>
+      <!-- 自分の手札エリア（スクロール可能ラッパー付き） -->
+      <div class="my-cards-wrapper">
+        <div class="my-cards" id="my-cards"></div>
+      </div>
     </div>
   </div>
 
   <script>
-    // 手札データ
+    // サンプル手札データ
     let myHand = [
       { id: 1, num: '7', suit: '♠', type: 'black' },
-      { id: 2, num: '7', suit: '♥', type: 'red' },   // ペア（点灯対象）
+      { id: 2, num: '7', suit: '♥', type: 'red' },   // ペア（点灯）
       { id: 3, num: 'K', suit: '♦', type: 'red' },
       { id: 4, num: 'A', suit: '♣', type: 'black' },
-      { id: 5, num: 'A', suit: '♠', type: 'black' }, // ペア（点灯対象）
+      { id: 5, num: 'A', suit: '♠', type: 'black' }, // ペア（点灯）
       { id: 6, num: 'JK', suit: '🃏', type: 'joker' }
     ];
 
     // ゲーム開始処理（タイトルタップ時）
     function startGame() {
       const titleScreen = document.getElementById('title-screen');
-      titleScreen.style.display = 'none'; // タイトルを隠す
-      
-      initGame(); // ゲーム画面の描画
+      titleScreen.style.display = 'none';
+      initGame();
     }
 
     // ゲーム初期化
@@ -330,7 +368,7 @@
       });
     }
 
-    // 対戦相手の手札を描画（ダミー）
+    // 対戦相手の手札を描画（ダミー表示）
     function renderOpponents() {
       ['p1-cards', 'p2-cards', 'p3-cards'].forEach(id => {
         const container = document.getElementById(id);
@@ -377,7 +415,7 @@
       }
     }
 
-    // 点灯ペアを捨てる
+    // 点灯しているペアを一括で捨てる
     function discardPairs() {
       myHand = myHand.filter(card => !card.isMatch);
       checkPairs();
