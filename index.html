@@ -7,21 +7,19 @@
   <style>
     :root {
       --bg-color: #1b4d3e;
-      --card-width: clamp(36px, 10vw, 48px);
+      --card-width: clamp(38px, 11vw, 50px);
       --card-height: calc(var(--card-width) * 1.4);
     }
 
     * {
       box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+      margin: 0; padding: 0;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
 
     html, body {
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       overflow: hidden;
       background-color: var(--bg-color);
       color: white;
@@ -33,232 +31,173 @@
     ========================================== */
     #title-screen {
       position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
+      top: 0; left: 0; width: 100%; height: 100%;
       background: radial-gradient(circle, #2d7059 0%, #0d2b22 100%);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-      cursor: pointer;
-      padding: 20px;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      z-index: 1000; cursor: pointer; padding: 20px;
     }
-
     .title-logo {
-      font-size: clamp(24px, 7vw, 32px);
-      font-weight: bold;
-      color: #ffd700;
-      text-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
-      margin-bottom: 10px;
-      text-align: center;
+      font-size: clamp(24px, 7vw, 32px); font-weight: bold;
+      color: #ffd700; text-shadow: 0 4px 10px rgba(0,0,0,0.7);
+      margin-bottom: 10px; text-align: center;
     }
+    .title-sub { font-size: clamp(12px, 3.5vw, 15px); color: #e0e0e0; margin-bottom: 40px; }
+    .start-msg { font-size: clamp(16px, 5vw, 20px); font-weight: bold; animation: blink 1.2s infinite; letter-spacing: 2px; }
 
-    .title-sub {
-      font-size: clamp(12px, 3.5vw, 15px);
-      color: #e0e0e0;
-      margin-bottom: 40px;
-    }
-
-    .start-msg {
-      font-size: clamp(16px, 5vw, 20px);
-      font-weight: bold;
-      animation: blink 1.2s infinite;
-      letter-spacing: 2px;
-    }
-
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.15; }
-    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
 
     /* ==========================================
-       ② メインゲーム画面
+       ② メインゲーム画面レイアウト
     ========================================== */
     #game-screen {
-      display: flex;
-      flex-direction: column;
+      display: flex; flex-direction: column;
       justify-content: space-between;
-      width: 100%;
-      height: 100vh;
-      /* スマホ下部のナビゲーションバー対策：底面に余白を確保 */
+      width: 100%; height: 100vh;
       padding-top: calc(env(safe-area-inset-top) + 5px);
-      padding-bottom: calc(env(safe-area-inset-bottom) + 25px);
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
+      padding-bottom: calc(env(safe-area-inset-bottom) + 15px);
     }
 
-    /* 上部：対戦相手エリア */
+    /* 1. 上部：対戦相手アイコン一覧 */
     .opponents-container {
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      padding: 6px 4px;
-      background: rgba(0, 0, 0, 0.35);
+      display: flex; justify-content: space-around; align-items: center;
+      padding: 6px 4px; background: rgba(0, 0, 0, 0.4);
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 2;
     }
-
     .player-node {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      font-size: 11px;
-      width: 30%;
-      padding: 4px;
-      border-radius: 6px;
-      transition: background 0.3s;
+      display: flex; flex-direction: column; align-items: center;
+      font-size: 11px; width: 30%; padding: 4px; border-radius: 6px;
     }
-    .player-node.active {
-      background: rgba(255, 215, 0, 0.25);
-      border: 1px solid #ffd700;
+    .player-node.active { background: rgba(255, 215, 0, 0.25); border: 1px solid #ffd700; }
+    .p-name { font-weight: bold; font-size: 11px; }
+
+    /* 2. 中央上側：カードを選択して引き抜くためのステージ */
+    .draw-stage {
+      height: 120px; display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      position: relative; z-index: 10;
+    }
+    .pick-cards-container {
+      display: flex; justify-content: center; align-items: center;
+      perspective: 500px;
+    }
+    /* 選択用の大きめカード */
+    .card-pickable {
+      width: clamp(45px, 13vw, 58px);
+      height: calc(clamp(45px, 13vw, 58px) * 1.4);
+      background: linear-gradient(135deg, #1e3c72 0%, #2a52be 100%);
+      border: 2px solid #fff; border-radius: 6px;
+      margin-left: -18px; cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card-pickable:first-child { margin-left: 0; }
+    .card-pickable:active, .card-pickable:hover {
+      transform: translateY(-12px) scale(1.1);
+      box-shadow: 0 0 12px #ffd700; border-color: #ffd700;
     }
 
-    .p-name {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
-      font-weight: bold;
-    }
-
-    .opponent-cards {
-      display: flex;
-      margin-top: 4px;
-      min-height: 22px;
-      cursor: pointer;
-    }
-
-    .card-mini {
-      width: clamp(12px, 3.2vw, 16px);
-      height: clamp(18px, 4.8vw, 24px);
-      background: #2a52be;
-      border: 1px solid #fff;
-      border-radius: 2px;
-      margin-left: -5px;
-      box-shadow: 1px 1px 3px rgba(0,0,0,0.4);
-    }
-    .card-mini:first-child { margin-left: 0; }
-
-    /* 中央：フィールド・メッセージエリア */
+    /* 3. 真ん中：ターンの説明文章エリア */
     .field-area {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 8px;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      padding: 4px 10px; z-index: 5;
     }
-
     .status-msg {
-      font-size: clamp(13px, 3.8vw, 15px);
-      background: rgba(0, 0, 0, 0.75);
-      padding: 8px 16px;
-      border-radius: 20px;
-      margin-bottom: 10px;
-      text-align: center;
-      border: 1px solid rgba(255,255,255,0.2);
-      max-width: 92%;
+      font-size: clamp(12px, 3.6vw, 14px); background: rgba(0, 0, 0, 0.75);
+      padding: 6px 14px; border-radius: 20px; text-align: center;
+      border: 1px solid rgba(255,255,255,0.2); max-width: 95%;
     }
-
     .action-btn {
-      background: #ff9800;
-      color: white;
-      border: none;
-      padding: 8px 18px;
-      font-size: clamp(13px, 3.8vw, 15px);
-      font-weight: bold;
-      border-radius: 20px;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.4);
-      cursor: pointer;
-      display: none;
+      background: #ff9800; color: white; border: none;
+      padding: 6px 16px; font-size: 13px; font-weight: bold;
+      border-radius: 20px; box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+      margin-top: 6px; cursor: pointer; display: none;
     }
 
-    /* 下部：自分のエリア */
-    .my-area {
-      background: rgba(0, 0, 0, 0.45);
-      padding: 6px 0 10px 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      width: 100%;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    /* 4. GUIのすぐ上：持ち札（自分の手札）エリア */
+    .my-cards-area {
+      width: 100%; display: flex; justify-content: center;
+      padding: 4px 0; overflow-x: auto; -webkit-overflow-scrolling: touch;
     }
-
-    /* アイテム欄 */
-    .item-bar {
-      display: flex;
-      gap: 4px;
-      width: 100%;
-      justify-content: center;
-      padding: 0 4px;
-      flex-wrap: wrap;
-    }
-
-    .item-btn {
-      background: #222;
-      border: 1px solid #ffcc00;
-      color: #ffcc00;
-      padding: 4px 6px;
-      font-size: clamp(9px, 2.8vw, 11px);
-      border-radius: 5px;
-      cursor: pointer;
-    }
-
-    /* 自分の手札エリア */
-    .my-cards-wrapper {
-      width: 100%;
-      overflow-x: auto;
-      overflow-y: hidden;
-      padding: 6px 10px 4px 10px;
-      display: flex;
-      justify-content: center;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .my-cards {
-      display: flex;
-      align-items: center;
-      min-height: calc(var(--card-height) + 12px);
-    }
+    .my-cards { display: flex; align-items: center; min-height: calc(var(--card-height) + 12px); }
 
     .card {
-      width: var(--card-width);
-      height: var(--card-height);
-      background: white;
-      color: #111;
-      border-radius: 5px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-size: clamp(11px, 3.5vw, 14px);
-      font-weight: bold;
+      width: var(--card-width); height: var(--card-height);
+      background: white; color: #111; border-radius: 5px;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      font-size: clamp(11px, 3.5vw, 14px); font-weight: bold;
       box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-      margin-left: calc(var(--card-width) * -0.38);
-      position: relative;
-      transition: transform 0.2s;
-      border: 1px solid #bbb;
-      flex-shrink: 0;
+      margin-left: calc(var(--card-width) * -0.38); position: relative;
+      border: 1px solid #bbb; flex-shrink: 0;
     }
     .card:first-child { margin-left: 0; }
-
     .card.red { color: #d32f2f; }
-    .card.joker { 
-      background: #7b1fa2; 
-      color: white; 
-      border-color: #ba68c8;
-    }
-
-    .card.match {
-      animation: pulse-glow 0.8s infinite alternate;
-      z-index: 10;
-      transform: translateY(-8px);
-    }
+    .card.joker { background: #7b1fa2; color: white; border-color: #ba68c8; }
+    .card.match { animation: pulse-glow 0.8s infinite alternate; z-index: 10; transform: translateY(-8px); }
 
     @keyframes pulse-glow {
       0% { box-shadow: 0 0 6px #00ffff; border: 2px solid #00ffff; }
       100% { box-shadow: 0 0 14px #00ffff; border: 2px solid #ffffff; }
+    }
+
+    /* 5. 一番下：GUIエリア（位置固定） */
+    .my-gui-area {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 8px 4px; display: flex; flex-direction: column;
+      align-items: center; gap: 4px; width: 100%;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .item-bar { display: flex; gap: 4px; width: 100%; justify-content: center; flex-wrap: wrap; }
+    .item-btn {
+      background: #222; border: 1px solid #666; color: #888;
+      padding: 5px 6px; font-size: clamp(9px, 2.7vw, 11px);
+      border-radius: 5px; cursor: pointer; transition: all 0.3s;
+    }
+    /* 所持しているアイテムの点灯状態 */
+    .item-btn.active {
+      border-color: #ffcc00; color: #ffcc00; background: #332b00;
+      box-shadow: 0 0 8px rgba(255,204,0,0.5);
+    }
+
+    /* ==========================================
+       ③ アイテムルーレットモーダル演出
+    ========================================== */
+    #roulette-modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85); z-index: 2000;
+      display: none; flex-direction: column; justify-content: center; align-items: center;
+    }
+    .roulette-title { font-size: 20px; color: #ffd700; font-weight: bold; margin-bottom: 15px; }
+    .roulette-box {
+      width: 220px; height: 100px; background: #111;
+      border: 3px solid #ffd700; border-radius: 12px;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 22px; font-weight: bold; color: #fff;
+      box-shadow: 0 0 20px rgba(255,215,0,0.4); margin-bottom: 20px;
+    }
+    /* 停止時のシェイク＆フラッシュ演出 */
+    .roulette-box.shake-flash {
+      animation: shake 0.4s ease-in-out, flash 0.5s infinite alternate;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translate(0, 0); }
+      20% { transform: translate(-8px, 5px); }
+      40% { transform: translate(8px, -5px); }
+      60% { transform: translate(-5px, 3px); }
+      80% { transform: translate(5px, -3px); }
+    }
+    @keyframes flash {
+      0% { background: #111; box-shadow: 0 0 10px #ffd700; }
+      100% { background: #665200; box-shadow: 0 0 35px #ffffff, 0 0 15px #ffd700; }
+    }
+
+    .roulette-btn {
+      background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+      color: white; border: none; padding: 12px 30px; font-size: 16px;
+      font-weight: bold; border-radius: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      cursor: pointer;
     }
   </style>
 </head>
@@ -273,98 +212,110 @@
 
   <!-- ② ゲームメイン画面 -->
   <div id="game-screen">
-    <!-- 上部：対戦相手エリア -->
+    <!-- 1. 画面上部：対戦相手アイコン -->
     <div class="opponents-container">
       <div class="player-node" id="node-1">
         <span class="p-name">CPU 1</span>
-        <div class="opponent-cards" id="p1-cards" onclick="drawFromOpponent(1)"></div>
+        <span id="p1-count" style="font-size:10px; color:#aaa;">(4枚)</span>
       </div>
       <div class="player-node" id="node-2">
         <span class="p-name">CPU 2</span>
-        <div class="opponent-cards" id="p2-cards" onclick="drawFromOpponent(2)"></div>
+        <span id="p2-count" style="font-size:10px; color:#aaa;">(4枚)</span>
       </div>
       <div class="player-node" id="node-3">
         <span class="p-name">CPU 3</span>
-        <div class="opponent-cards" id="p3-cards" onclick="drawFromOpponent(3)"></div>
+        <span id="p3-count" style="font-size:10px; color:#aaa;">(4枚)</span>
       </div>
     </div>
 
-    <!-- 中央：メッセージ・アクションエリア -->
+    <!-- 2. 中央上部：他プレイヤーから引く場合のカード選択ステージ -->
+    <div class="draw-stage">
+      <div class="pick-cards-container" id="pick-cards-container"></div>
+    </div>
+
+    <!-- 3. 真ん中：ターン説明・メッセージ表示エリア -->
     <div class="field-area">
-      <div class="status-msg" id="status-msg">配カード中...</div>
+      <div class="status-msg" id="status-msg">ゲーム準備中...</div>
       <button class="action-btn" id="discard-btn" onclick="discardPairs()">揃ったペアを捨てる</button>
     </div>
 
-    <!-- 下部：自分のエリア -->
-    <div class="my-area">
-      <div class="item-bar">
-        <button class="item-btn" onclick="useItem('透視')">▣ 透視</button>
-        <button class="item-btn" onclick="useItem('スキップ')">▣ スキップ</button>
-        <button class="item-btn" onclick="useItem('順番反転')">▣ 反転</button>
-        <button class="item-btn" onclick="useItem('ジョーカー')">▣ 探知</button>
-        <button class="item-btn" onclick="useItem('強奪')">▣ 強奪</button>
-      </div>
+    <!-- 4. GUIより上側：持ち札（自分のカード）エリア -->
+    <div class="my-cards-area">
+      <div class="my-cards" id="my-cards"></div>
+    </div>
 
-      <div class="my-cards-wrapper">
-        <div class="my-cards" id="my-cards"></div>
+    <!-- 5. 画面最下部：固定GUI（アイテム一覧等） -->
+    <div class="my-gui-area">
+      <div class="item-bar">
+        <button class="item-btn" id="item-透視" onclick="useItem('透視')">透視 <span id="cnt-透視">(0/3)</span></button>
+        <button class="item-btn" id="item-スキップ" onclick="useItem('スキップ')">スキップ <span id="cnt-スキップ">(0/3)</span></button>
+        <button class="item-btn" id="item-順番反転" onclick="useItem('順番反転')">反転 <span id="cnt-順番反転">(0/3)</span></button>
+        <button class="item-btn" id="item-ジョーカー" onclick="useItem('ジョーカー')">探知 <span id="cnt-ジョーカー">(0/3)</span></button>
+        <button class="item-btn" id="item-強奪" onclick="useItem('強奪')">強奪 <span id="cnt-強奪">(0/3)</span></button>
       </div>
     </div>
   </div>
 
+  <!-- ③ アイテム獲得ルーレットモーダル -->
+  <div id="roulette-modal">
+    <div class="roulette-title">🎁 ITEM DROPPED!</div>
+    <div class="roulette-box" id="roulette-box">???</div>
+    <button class="roulette-btn" id="roulette-btn" onclick="controlRoulette()">回転スタート</button>
+  </div>
+
   <script>
-    // ゲーム状態データ
+    // プレイヤー状態
     let players = [
-      { id: 0, name: 'あなた', hand: [], isCpu: false },
-      { id: 1, name: 'CPU 1', hand: [], isCpu: true },
-      { id: 2, name: 'CPU 2', hand: [], isCpu: true },
-      { id: 3, name: 'CPU 3', hand: [], isCpu: true }
+      { id: 0, name: 'あなた', hand: [] },
+      { id: 1, name: 'CPU 1', hand: [] },
+      { id: 2, name: 'CPU 2', hand: [] },
+      { id: 3, name: 'CPU 3', hand: [] }
     ];
-    let currentTurn = 0; // 0:自分, 1~3:CPU
+    let currentTurn = 0;
     let isProcessing = false;
+
+    // アイテム所持数（最大3つ）
+    let items = { '透視': 0, 'スキップ': 0, '順番反転': 0, 'ジョーカー': 0, '強奪': 0 };
+    const itemNames = ['透視', 'スキップ', '順番反転', 'ジョーカー', '強奪'];
+
+    // ルーレット変数
+    let rouletteTimer = null;
+    let isRouletteRunning = false;
+    let selectedItem = '';
 
     function startGame() {
       document.getElementById('title-screen').style.display = 'none';
       setupDeckAndDeal();
     }
 
-    // デッキ作成＆カード配布
+    // デッキ作成＆配布
     function setupDeckAndDeal() {
       let deck = [];
       const suits = ['♠', '♥', '♦', '♣'];
-      const nums = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+      const nums = ['A', '2', '3', '4', '5', '6', '7'];
 
-      // 簡単テスト用に1〜7のカード＋JOKERでデッキ生成（動作を軽快にするため）
       suits.forEach(suit => {
-        for (let i = 0; i < 5; i++) {
-          deck.push({
-            num: nums[i],
-            suit: suit,
-            type: (suit === '♥' || suit === '♦') ? 'red' : 'black'
-          });
-        }
+        nums.forEach(num => {
+          deck.push({ num, suit, type: (suit === '♥' || suit === '♦') ? 'red' : 'black' });
+        });
       });
       deck.push({ num: 'JK', suit: '🃏', type: 'joker' });
-
-      // シャッフル
       deck.sort(() => Math.random() - 0.5);
 
-      // 配布
       let pIdx = 0;
       while (deck.length > 0) {
         players[pIdx].hand.push(deck.pop());
         pIdx = (pIdx + 1) % 4;
       }
 
-      // 初期ペア破棄
       players.forEach(p => autoDiscardPairs(p));
-
       updateUI();
       checkTurn();
     }
 
-    // 各プレイヤーの手札描画と更新
+    // 全体のUI描画更新
     function updateUI() {
-      // 自分の手札描画
+      // 1. 自分の手札描画（GUIの上に配置）
       const myCardsEl = document.getElementById('my-cards');
       myCardsEl.innerHTML = '';
       players[0].hand.forEach(card => {
@@ -374,109 +325,102 @@
         myCardsEl.appendChild(el);
       });
 
-      // CPUの手札枚数描画
+      // 2. 対戦相手のカード枚数＆ターン表示
       for (let i = 1; i <= 3; i++) {
-        const container = document.getElementById(`p${i}-cards`);
+        document.getElementById(`p${i}-count`).innerText = `(${players[i].hand.length}枚)`;
         const node = document.getElementById(`node-${i}`);
-        container.innerHTML = '';
-        
-        players[i].hand.forEach(() => {
-          const mini = document.createElement('div');
-          mini.className = 'card-mini';
-          container.appendChild(mini);
-        });
-
-        // ターンハイライト
-        if (currentTurn === i) {
-          node.classList.add('active');
-        } else {
-          node.classList.remove('active');
-        }
+        if (currentTurn === i) node.classList.add('active');
+        else node.classList.remove('active');
       }
 
-      // 自分の手札にペアがあるかチェック
+      // 3. GUIのアイテム所持状況と点灯制御
+      itemNames.forEach(name => {
+        const btn = document.getElementById(`item-${name}`);
+        const cntSpan = document.getElementById(`cnt-${name}`);
+        cntSpan.innerText = `(${items[name]}/3)`;
+
+        if (items[name] > 0) btn.classList.add('active');
+        else btn.classList.remove('active');
+      });
+
       checkMyPairs();
     }
 
-    // 自分の手札のペア点灯チェック
+    // ペア自動判定＆捨てるボタン制御
     function checkMyPairs() {
       const counts = {};
-      players[0].hand.forEach(c => {
-        if (c.type !== 'joker') counts[c.num] = (counts[c.num] || 0) + 1;
-      });
+      players[0].hand.forEach(c => { if (c.type !== 'joker') counts[c.num] = (counts[c.num] || 0) + 1; });
 
       let hasMatch = false;
       players[0].hand.forEach(c => {
-        if (counts[c.num] >= 2) {
-          c.isMatch = true;
-          hasMatch = true;
-        } else {
-          c.isMatch = false;
-        }
+        if (counts[c.num] >= 2) { c.isMatch = true; hasMatch = true; }
+        else c.isMatch = false;
       });
 
-      const btn = document.getElementById('discard-btn');
-      if (hasMatch) {
-        btn.style.display = 'block';
-      } else {
-        btn.style.display = 'none';
-      }
+      document.getElementById('discard-btn').style.display = hasMatch ? 'block' : 'none';
     }
 
-    // 自分のペアを一括で捨てる
     function discardPairs() {
       players[0].hand = players[0].hand.filter(c => !c.isMatch);
       updateUI();
       setMessage('ペアを捨てました！');
     }
 
-    // 自動ペア破棄（CPUおよび初期化用）
     function autoDiscardPairs(player) {
       const counts = {};
-      player.hand.forEach(c => {
-        if (c.type !== 'joker') counts[c.num] = (counts[c.num] || 0) + 1;
-      });
-
-      const newHand = [];
-      const removed = {};
+      player.hand.forEach(c => { if (c.type !== 'joker') counts[c.num] = (counts[c.num] || 0) + 1; });
+      const newHand = []; const removed = {};
       player.hand.forEach(c => {
         if (c.type !== 'joker' && counts[c.num] >= 2) {
-          // 2枚ペアで捨てる
           removed[c.num] = (removed[c.num] || 0) + 1;
           if (removed[c.num] > 2) newHand.push(c);
-        } else {
-          newHand.push(c);
-        }
+        } else newHand.push(c);
       });
       player.hand = newHand;
     }
 
-    // ターンの進行制御
+    // ターン管理＆アイテムルーレット割り込み
     function checkTurn() {
+      const pickStage = document.getElementById('pick-cards-container');
+      pickStage.innerHTML = '';
+
       if (currentTurn === 0) {
-        setMessage('あなたのターンです。CPU 1の手札をタップして引いてください！');
+        // 約50%の確率でアイテムを獲得してゲームを一時中断
+        if (Math.random() < 0.5) {
+          openRouletteModal();
+          return;
+        }
+        setupMyTurnDrawUI();
       } else {
         setMessage(`${players[currentTurn].name} が思考中...`);
-        // CPUの動作を軽快にする（1秒後に引く処理を実行）
-        setTimeout(cpuTurnAction, 1000);
+        setTimeout(cpuTurnAction, 1200);
       }
     }
 
-    // プレイヤーがCPUの手札をタップして引く処理
-    function drawFromOpponent(targetCpuId) {
-      if (currentTurn !== 0 || isProcessing) return;
-      if (targetCpuId !== 1) {
-        setMessage('隣のプレイヤー（CPU 1）からカードを引いてください！');
-        return;
-      }
-      if (players[1].hand.length === 0) return;
+    // 自分のターン：中央上部に相手の手札を大きく配置
+    function setupMyTurnDrawUI() {
+      setMessage('あなたのターン：相手のカードを1枚選んで引いてください！');
+      const pickStage = document.getElementById('pick-cards-container');
+      pickStage.innerHTML = '';
 
+      const targetHand = players[1].hand; // CPU 1から引く
+      targetHand.forEach((_, idx) => {
+        const cardPick = document.createElement('div');
+        cardPick.className = 'card-pickable';
+        cardPick.onclick = () => drawFromOpponent(idx);
+        pickStage.appendChild(cardPick);
+      });
+    }
+
+    // カードをタップして引き抜く処理
+    function drawFromOpponent(cardIndex) {
+      if (currentTurn !== 0 || isProcessing) return;
       isProcessing = true;
-      // CPU 1からランダムに1枚引く
-      const randIdx = Math.floor(Math.random() * players[1].hand.length);
-      const drawnCard = players[1].hand.splice(randIdx, 1)[0];
+
+      const drawnCard = players[1].hand.splice(cardIndex, 1)[0];
       players[0].hand.push(drawnCard);
 
+      document.getElementById('pick-cards-container').innerHTML = '';
       setMessage(`CPU 1 から [ ${drawnCard.suit}${drawnCard.num} ] を引きました！`);
       updateUI();
 
@@ -486,11 +430,10 @@
       }, 1200);
     }
 
-    // CPUの自動ターン行動（軽量化）
+    // CPUの自動プレイ
     function cpuTurnAction() {
       const activeCpu = players[currentTurn];
-      const targetId = (currentTurn + 1) % 4; // 次のターゲット
-      const targetPlayer = players[targetId];
+      const targetPlayer = players[(currentTurn + 1) % 4];
 
       if (targetPlayer.hand.length > 0) {
         const randIdx = Math.floor(Math.random() * targetPlayer.hand.length);
@@ -498,12 +441,10 @@
         activeCpu.hand.push(drawnCard);
         autoDiscardPairs(activeCpu);
       }
-
       updateUI();
       nextTurn();
     }
 
-    // 次のターンへ移動
     function nextTurn() {
       currentTurn = (currentTurn + 1) % 4;
       updateUI();
@@ -514,9 +455,65 @@
       document.getElementById('status-msg').innerText = msg;
     }
 
-    // アイテム機能テスト
+    /* ==========================================
+       アイテムルーレット制御ロジック
+    ========================================== */
+    function openRouletteModal() {
+      const modal = document.getElementById('roulette-modal');
+      const box = document.getElementById('roulette-box');
+      const btn = document.getElementById('roulette-btn');
+
+      box.className = 'roulette-box';
+      box.innerText = '???';
+      btn.innerText = '回転スタート';
+      btn.disabled = false;
+      modal.style.display = 'flex';
+    }
+
+    function controlRoulette() {
+      const box = document.getElementById('roulette-box');
+      const btn = document.getElementById('roulette-btn');
+
+      if (!isRouletteRunning) {
+        // 回転開始
+        isRouletteRunning = true;
+        btn.innerText = 'TAP TO STOP!';
+        rouletteTimer = setInterval(() => {
+          const rand = itemNames[Math.floor(Math.random() * itemNames.length)];
+          box.innerText = `▣ ${rand}`;
+        }, 60);
+      } else {
+        // 停止処理＆震える・光る演出
+        clearInterval(rouletteTimer);
+        isRouletteRunning = false;
+        btn.disabled = true;
+
+        selectedItem = itemNames[Math.floor(Math.random() * itemNames.length)];
+        box.innerText = `▣ ${selectedItem}`;
+        box.classList.add('shake-flash'); // 演出適用
+
+        setTimeout(() => {
+          // 所持制限（ストック最大3つ）
+          if (items[selectedItem] < 3) {
+            items[selectedItem]++;
+          }
+          updateUI();
+
+          // モーダルを閉じて自ターン再開
+          document.getElementById('roulette-modal').style.display = 'none';
+          setupMyTurnDrawUI();
+        }, 1200);
+      }
+    }
+
     function useItem(name) {
-      alert(`【アイテム発動】${name}`);
+      if (items[name] > 0) {
+        items[name]--;
+        updateUI();
+        alert(`【アイテム発動】${name} を使用しました！`);
+      } else {
+        alert('アイテムのストックがありません。');
+      }
     }
   </script>
 </body>
